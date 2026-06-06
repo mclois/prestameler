@@ -1,7 +1,6 @@
 from django.contrib import admin
 
-from availability.models import Catalog, Copy, Library
+from availability.models import Catalog, Copy
 
 admin.site.register(Catalog)
-admin.site.register(Library)
 admin.site.register(Copy)
