@@ -32,6 +32,60 @@ A app `availability` non se ve afectada: os libros identifícanse por ISBN, que 
 
 ---
 
+## Mixin de caché — `CacheableModel`
+
+Modelo abstracto do que herdan todos os modelos que actúan como caché de datos externos.
+
+```python
+class CacheableModel(models.Model):
+    DEFAULT_CACHE_TTL: int = 3600  # override en cada subclase
+
+    cid       = models.UUIDField(default=uuid.uuid4, editable=False, db_index=True)
+    cached_at = models.DateTimeField(auto_now=True)
+    cache_ttl = models.PositiveIntegerField()          # valor por defecto posto no save()
+    source    = models.CharField(max_length=50, db_index=True)  # obrigatorio, posto polo repo
+    tags      = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if not self.cache_ttl:
+            self.cache_ttl = self.DEFAULT_CACHE_TTL
+        super().save(*args, **kwargs)
+
+    @property
+    def is_stale(self) -> bool:
+        expiry = self.cached_at + timedelta(seconds=self.cache_ttl)
+        return timezone.now() > expiry
+```
+
+**Responsabilidades e decisións de deseño**
+
+- `cache_ttl`: persistido en BD (permite invalidar instancias concretas poñéndoo a `0`). O valor por defecto defínese como constante de clase (`DEFAULT_CACHE_TTL`) en cada subclase; o repositorio non coñece nin establece este valor.
+- `source`: valor fixo definido polo repositorio que crea a instancia (ex. `"hardcover"`, `"openlibrary"`). Permite invalidar por orixe: `Book.objects.filter(source="hardcover").update(cache_ttl=0)`.
+- `tags`: campo libre para metadatos opcionais. Non se usa para source nin para invalidación estruturada.
+- `cid`: identificador estable para referenciar o rexistro dende capas superiores sen expor a PK interna.
+
+**Patrón de invalidación por orixe**
+```python
+# Invalidar toda a caché dun repositorio concreto
+Book.objects.filter(source="openlibrary").update(cache_ttl=0)
+Copy.objects.filter(source="odilo").update(cache_ttl=0)
+# Na seguinte chamada ao manager, is_stale=True forzará refresco
+```
+
+**Patrón no repositorio**
+```python
+class HardcoverRepository(BookRepositoryBase):
+    SOURCE = "hardcover"
+
+    def fetch(self, ...) -> Book:
+        return Book(source=self.SOURCE, ...)
+```
+
+---
+
 ## Módulos da app
 
 ### 1. `books` — Información de libros
@@ -41,29 +95,35 @@ Extrae e cachea información de libros dende APIs externas.
 - `Collection`: lista de libros (por xénero, colección, resultado de busca...)
   - `title`, `description`, `cover_image`
   - `book_count`, `selection_author`
-  - Caché: `cid`, `cached_at`, `cache_ttl`, `tags`
+  - Caché: `cid`, `cached_at`, `cache_ttl`, `source`, `tags`
 - `Book`: libro con datos básicos
   - `title`, `author`, `cover_image`, `language`, `rating`
   - `external_id` (da API orixe)
   - FK → `Edition` (lista de edicións)
-  - Caché: `cid`, `cached_at`, `cache_ttl`, `tags`
+  - Caché: `cid`, `cached_at`, `cache_ttl`, `source`, `tags`
 - `Edition`: edición concreta dun libro
   - `isbn` (identificador para busca de dispoñibilidade)
   - `format`: físico / ePub / PDF / audiolibro / ...
   - `publisher`, `published_date`
-  - Caché: `cid`, `cached_at`, `cache_ttl`, `tags`
+  - Caché: `cid`, `cached_at`, `cache_ttl`, `source`, `tags`
 
 **Capas**
 - `repositories/base.py`: interface `BookRepositoryBase` (ABC)
-- `repositories/hardcover.py`: implementación para Hardcover API
-- `repositories/openlibrary.py`: implementación para OpenLibrary (futuro)
-- `repositories/google_books.py`: implementación para Google Books (futuro)
+- `repositories/hardcover.py`: implementación para Hardcover API (principal)
+- `repositories/openlibrary.py`: implementación para OpenLibrary (fallback de ISBNs e metadatos)
 - `managers.py`: `BookManager` — carga local ou delega no repo activo
 
-**APIs de terceiros**
-- Principal: **Hardcover** (GraphQL API)
-- Secundaria/fallback: **OpenLibrary** (REST, gratuíta e sen clave)
-- Posible combinación: Hardcover para descubrimento, OpenLibrary para ISBNs
+**APIs de terceiros — decisión adoptada**
+
+| API | Rol | Notas |
+|-----|-----|-------|
+| **Hardcover** | Principal — descubrimento e comunidade | GraphQL. Gratuíto (beta). Token con rexistro gratuíto. 60 req/min. Ofrece coleccions, series, valoracións, listas de usuarios, tags e contadores de lectores. Cobertura en español limitada pero crecendo. |
+| **Open Library** | Fallback — metadatos e ISBNs | REST. Gratuíto e sen clave. +20M obras. Filtro por idioma (`language:spa`, `language:cat`…). Forte en clásicos; datos irregulares en edicións modernas. Non deseñada para tráfico alto. |
+| **Google Books** | Descartada | Boa amplitude de catálogo pero termos prohíben monetización dos datos e carece de datos de comunidade na API pública. |
+
+**APIs para o futuro (non implementar agora)**
+- **LibraryThing** (`multirecommendations`): endpoint público que recibe un ou varios ISBNs e devolve recomendacións baseadas na comunidade — o "outros lectores tamén leron" que nin Hardcover nin Open Library ofrecen nativamente. Require API key gratuíta. Gardar para cando o módulo de descubrimento estea maduro.
+- **StoryGraph**: 5M+ usuarios, excelente en recomendacións por humor/estado de ánimo, pero sen API oficial (só scraping fraxil con cookies). Descartar ata que publiquen API.
 
 ### 2. `availability` — Dispoñibilidade en bibliotecas
 Comproba se un ebook se pode emprestar nalgunha biblioteca de eBiblio.
@@ -76,7 +136,7 @@ Comproba se un ebook se pode emprestar nalgunha biblioteca de eBiblio.
   - `isbn`, FK → `Catalog`
   - `available` (bool ou null se non informado)
   - `borrow_url`
-  - Caché: `cid`, `cached_at`, `cache_ttl`, `tags`
+  - Caché: `cid`, `cached_at`, `cache_ttl`, `source`, `tags`
   - Nota: título, autor, portada... non se almacenan aquí; son responsabilidade de `Book`/`Edition`
 
 **Capas**
@@ -163,7 +223,11 @@ prestameler/
 - [ ] Confirmar endpoint JSON real de eBiblio (inspeccionar DevTools)
 - [ ] Credenciais/autenticación para Hardcover API
 - [ ] Backend de caché (Redis vs BD)
-- [ ] Se combinar Hardcover + OpenLibrary ou só un
 - [ ] Arquitectura concreta de `filter` (o Manager actual pode ser suficiente)
 - [ ] Framework CSS para os templates (Bootstrap, Tailwind, ningún?)
 - [ ] Deploy: servidor, containerización (Docker?)
+
+## Decisións adoptadas
+- [x] **APIs de libros**: Hardcover (principal) + Open Library (fallback ISBNs). Google Books descartada.
+- [x] **Recomendacións "tamén leron"**: LibraryThing `multirecommendations` gardado para fase futura.
+- [x] **Mixin de caché**: `CacheableModel` abstracto con `cid`, `cached_at`, `cache_ttl`, `source`, `tags`. `cache_ttl` persistido en BD e invalidable poñéndoo a `0`. `source` fixo por repositorio. `DEFAULT_CACHE_TTL` como constante de clase en cada subclase.
