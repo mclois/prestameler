@@ -1,0 +1,28 @@
+[
+  {
+    "model": "availability.catalog",
+    "pk": 1,
+    "fields": {
+      "name": "eBiblio Galicia",
+      "community": "Galicia",
+      "base_url": "https://galicia.ebiblio.es",
+      "backend": "web",
+      "cached_at": null,
+      "cache_ttl": 3600,
+      "is_active": true
+    }
+  },
+  {
+    "model": "availability.catalog",
+    "pk": 2,
+    "fields": {
+      "name": "eBiblio Extremadura",
+      "community": "Extremadura",
+      "base_url": "https://extremadura.ebiblio.es",
+      "backend": "web",
+      "cached_at": null,
+      "cache_ttl": 3600,
+      "is_active": true
+    }
+  }
+]

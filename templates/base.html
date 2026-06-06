@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="gl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Prestameler{% endblock %}</title>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="{% url 'filter:index' %}">Prestameler</a>
+      <a href="{% url 'filter:search' %}">Buscar</a>
+    </nav>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block extra_js %}{% endblock %}
+</body>
+</html>
