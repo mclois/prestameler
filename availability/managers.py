@@ -9,4 +9,9 @@ class AvailabilityManager:
         self._repo = CompositeRepository()
 
     def get_copies(self, isbn: str) -> list[CopyDTO]:
-        raise NotImplementedError
+        from availability.models import Copy  # local import avoids app-registry issues
+
+        copies = self._repo.search(isbn)
+        for dto in copies:
+            Copy.update_cache(dto)
+        return copies
