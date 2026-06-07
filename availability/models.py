@@ -40,7 +40,7 @@ class Copy(CacheableModel):
     def update_from_dto(cls, dto: CopyDTO) -> Copy:
         copy, _ = cls.objects.update_or_create(
             isbn=dto.isbn,
-            catalog_id=dto.catalog,
+            catalog_id=dto.catalog_id,
             defaults={
                 "available": dto.available,
                 "borrow_url": dto.borrow_url,
