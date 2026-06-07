@@ -14,7 +14,7 @@ class Catalog(models.Model):
     name = models.CharField(max_length=255)
     community = models.CharField(max_length=100)
     base_url = models.URLField()
-    backend = models.CharField(max_length=20, choices=BACKEND_CHOICES, default=ODILO)
+    backend = models.CharField(max_length=20, choices=BACKEND_CHOICES, default=WEB)
     is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:
