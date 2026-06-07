@@ -37,7 +37,7 @@ class Copy(CacheableModel):
         return f"{self.isbn} @ {self.catalog}"
 
     @classmethod
-    def update_from_dto(cls, dto: CopyDTO) -> Copy:
+    def update_cache(cls, dto: CopyDTO) -> Copy:
         copy, _ = cls.objects.update_or_create(
             isbn=dto.isbn,
             catalog_id=dto.catalog_id,

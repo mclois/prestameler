@@ -13,5 +13,5 @@ class AvailabilityManager:
 
         copies = self._repo.search(isbn)
         for dto in copies:
-            Copy.update_from_dto(dto)
+            Copy.update_cache(dto)
         return copies
