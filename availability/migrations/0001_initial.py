@@ -37,7 +37,7 @@ class Migration(migrations.Migration):
             ],
             options={
                 'verbose_name_plural': 'copies',
-                'unique_together': {('isbn', 'catalog', 'source')},
+                'unique_together': {('isbn', 'catalog')},
             },
         ),
     ]

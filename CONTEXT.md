@@ -63,8 +63,8 @@ class CacheableModel(models.Model):
         return getattr(self, self.CID_FIELD)
 
     @classmethod
-    def get_cached(cls, cid: str, source: str) -> Self | None:
-        return cls.objects.filter(**{cls.CID_FIELD: cid, "source": source}).first()
+    def get_cached(cls, cid: str) -> Self | None:
+        return cls.objects.filter(**{cls.CID_FIELD: cid}).first()
 
     @property
     def is_stale(self) -> bool:
@@ -76,16 +76,16 @@ class CacheableModel(models.Model):
 
 - `CID_FIELD`: constante de clase que indica cal é o campo ID externo nesa subclase (ex. `"isbn"` en `Edition`, `"hardcover_id"` en `Book`). Obrigatorio; `__init_subclass__` forza un erro en tempo de definición se se esquece.
 - `cid` (property): devolve `getattr(self, self.CID_FIELD)`. Interface uniforme para as capas superiores sen coñecer o campo concreto.
-- `get_cached(cid, source)`: classmethod para lookup na caché. O manager usa `Edition.get_cached(isbn, "hardcover")` sen necesidade de coñecer o nome do campo. O `**{cls.CID_FIELD: ...}` queda encapsulado no mixin.
+- `get_cached(cid)`: classmethod para lookup na caché. O manager usa `Edition.get_cached(isbn, "hardcover")` sen necesidade de coñecer o nome do campo. O `**{cls.CID_FIELD: ...}` queda encapsulado no mixin.
 - `cache_ttl`: persistido en BD (permite invalidar instancias concretas poñéndoo a `0`). O valor por defecto defínese como `DEFAULT_CACHE_TTL` en cada subclase; o repositorio non coñece nin establece este valor.
-- `source`: valor fixo definido polo repositorio que crea a instancia (ex. `"hardcover"`, `"openlibrary"`). Permite invalidar por orixe: `Book.objects.filter(source="hardcover").update(cache_ttl=0)`.
+- `source`: valor fixo definido polo repositorio que crea a instancia (ex. `"hardcover"`, `"openlibrary"`). Permite invalidar por orixe: `Book.objects.filter(source="hardcover").update(cache_ttl=0)`. Non se usa para identificar rexistros, se o `cid` está na caché e non caducou se asume que os datos son correctos independentemente do source do que proveñan
 - **PK**: Django xera `id` (AutoField enteiro) automaticamente. A identidade de dominio vai en `unique_together = [('<cid_field>', 'source')]` na `Meta` de cada subclase.
 
 **Patrón de invalidación por orixe**
 ```python
 # Invalidar toda a caché dun repositorio concreto
 Book.objects.filter(source="openlibrary").update(cache_ttl=0)
-Copy.objects.filter(source="odilo").update(cache_ttl=0)
+Copy.objects.filter(source="eBiblio Galicia").update(cache_ttl=0)
 # Na seguinte chamada ao manager, is_stale=True forzará refresco
 ```
 
@@ -251,4 +251,4 @@ prestameler/
 ## Decisións adoptadas
 - [x] **APIs de libros**: Hardcover (principal) + Open Library (fallback ISBNs). Google Books descartada.
 - [x] **Recomendacións "tamén leron"**: LibraryThing `multirecommendations` gardado para fase futura.
-- [x] **Mixin de caché**: `CacheableModel` abstracto con `cached_at`, `cache_ttl`, `source`. Sen campo `cid` — en súa lugar, `CID_FIELD` (constante de clase) apunta ao campo semántico propio de cada subclase (ex. `isbn`, `hardcover_id`). `cid` property devolve ese valor. `get_cached(cid, source)` encapsula o lookup. `__init_subclass__` forza que toda subclase concreta declare `CID_FIELD`. PK: `id` enteiro automático de Django; unicidade de dominio vía `unique_together`. Sen `tags` (YAGNI).
+- [x] **Mixin de caché**: `CacheableModel` abstracto con `cached_at`, `cache_ttl`, `source`. Sen campo `cid` — en súa lugar, `CID_FIELD` (constante de clase) apunta ao campo semántico propio de cada subclase (ex. `isbn`, `hardcover_id`). `cid` property devolve ese valor. `get_cached(cid)` encapsula o lookup. `__init_subclass__` forza que toda subclase concreta declare `CID_FIELD`. PK: `id` enteiro automático de Django; unicidade de dominio vía `unique_together`. Sen `tags` (YAGNI).

@@ -18,7 +18,9 @@ class Catalog(models.Model):
         return self.name
 
 
-class Copy(models.Model):
+class Copy(CacheableModel):
+    CID_FIELD = "isbn"
+
     isbn = models.CharField(max_length=13, db_index=True)
     catalog = models.ForeignKey(Catalog, on_delete=models.CASCADE, related_name="copies")
     available = models.BooleanField(null=True)
@@ -26,7 +28,7 @@ class Copy(models.Model):
 
     class Meta:
         verbose_name_plural = "copies"
-        unique_together = [("isbn", "catalog", "source")]
+        unique_together = [("isbn", "catalog")]
 
     def __str__(self) -> str:
         return f"{self.isbn} @ {self.catalog}"

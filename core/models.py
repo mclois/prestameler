@@ -31,8 +31,8 @@ class CacheableModel(models.Model):
         return str(getattr(self, self.CID_FIELD))
 
     @classmethod
-    def get_cached(cls, cid: str, source: str) -> Self | None:
-        return cls.objects.filter(**{cls.CID_FIELD: cid, "source": source}).first()
+    def get_cached(cls, cid: str) -> Self | None:
+        return cls.objects.filter(**{cls.CID_FIELD: cid}).first()
 
     @property
     def is_stale(self) -> bool:
