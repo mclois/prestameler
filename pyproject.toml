@@ -13,3 +13,13 @@ dependencies = [
 
 [tool.uv.sources]
 pyz3950 = { git = "https://github.com/asl2/PyZ3950.git" }
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "prestameler_v00.settings"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-django>=4.12.0",
+]
