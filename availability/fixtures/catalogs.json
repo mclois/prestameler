@@ -7,8 +7,6 @@
       "community": "Galicia",
       "base_url": "https://galicia.ebiblio.es",
       "backend": "web",
-      "cached_at": null,
-      "cache_ttl": 3600,
       "is_active": true
     }
   },
@@ -20,8 +18,6 @@
       "community": "Extremadura",
       "base_url": "https://extremadura.ebiblio.es",
       "backend": "web",
-      "cached_at": null,
-      "cache_ttl": 3600,
       "is_active": true
     }
   }
