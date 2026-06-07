@@ -20,5 +20,9 @@ class CompositeRepository(AvailabilityRepositoryBase):
         copies: list[CopyDTO] = []
         for catalog in Catalog.objects.filter(is_active=True):
             repo_cls = _REGISTRY[catalog.backend]
-            copies += repo_cls(base_url=catalog.base_url).search(isbn)
+            found = repo_cls(base_url=catalog.base_url).search(isbn)
+            for dto in found:
+                dto.catalog_id = catalog.id
+                dto.source = catalog.name
+            copies += found
         return copies
