@@ -20,5 +20,18 @@
       "backend": "web",
       "is_active": true
     }
+  },
+  {
+    "model": "availability.catalog",
+    "pk": 3,
+    "fields": {
+      "name": "eBiblio Catalunya",
+      "community": "Catalunya",
+      "base_url": "https://biblioteca.ebiblio.cat",
+      "backend": "odilo",
+      "is_active": true,
+      "odilo_client_id": "NgOpac",
+      "odilo_client_secret": "kvFqFy1i0Y4eUJhM"
+    }
   }
 ]

@@ -163,7 +163,7 @@ Comproba se un ebook se pode emprestar nalgunha biblioteca de eBiblio.
 **Capas**
 - `repositories/base.py`: interface `AvailabilityRepositoryBase` (ABC)
   - método principal: `search(isbn: str) -> list[CopyDTO]`
-- `repositories/odilo.py`: implementación para catálogos con backend Odilo (endpoint JSON)
+- `repositories/odilo.py`: implementación para catálogos con backend Odilo (OAuth2 client_credentials + endpoint JSON `/opac/api/v2/records`)
 - `repositories/ebiblio_web.py`: implementación para catálogos sen Odilo (scraping HTML)
 - `repositories/composite.py`: `CompositeRepository(AvailabilityRepositoryBase)`
   - percorre os catálogos activos, instancia o repo correspondente segundo `catalog.backend`,
@@ -181,10 +181,19 @@ for catalog in Catalog.objects.filter(is_active=True):
 
 **Notas eBiblio**
 - Non hai API pública documentada
-- A plataforma usa **Odilo** como backend; as peticións son chamadas AJAX a un
-  endpoint JSON (patrón: `https://{comunidade}.ebiblio.es/api/v1/resources?isbn=...`)
-- Endpoint a confirmar inspeccionando tráfico de rede (DevTools → Fetch/XHR)
-- Catálogos coñecidos: galicia, extremadura, madrid, andalucia, ... (lista a ampliar)
+- A plataforma usa **Odilo** como backend, baixo `/opac/api/v2/`. Confirmado con
+  `https://biblioteca.ebiblio.cat` (Cataluña):
+  - **Auth**: OAuth2 `client_credentials`. `POST {base_url}/opac/api/v2/token` con
+    `Authorization: Basic <client_id:client_secret>` (par específico de cada catálogo,
+    extraído do JS público do frontend OPAC; gardado en `Catalog.odilo_client_id` /
+    `Catalog.odilo_client_secret`) e body `grant_type=client_credentials` →
+    `{"access_token": ..., "expires_in": ...}`
+  - **Busca**: `GET {base_url}/opac/api/v2/records?facets=format_facet_ss:"EBOOK"&query=allfields_txt:{isbn}&availability=true`
+    con `Authorization: Bearer <token>` → array JSON de rexistros (`id`, `isbn`,
+    `availability.availableToCheckout`, ...)
+  - **Detalle**: `{base_url}/info/{id}` (o `id` Odilo do rexistro, non o ISBN)
+- Catálogos coñecidos: galicia, extremadura (backend `web`), catalunya (backend `odilo`),
+  madrid, andalucia, ... (lista a ampliar)
 
 ### 3. `filter` — Motor de busca e interfaces públicas
 
