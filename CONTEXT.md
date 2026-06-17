@@ -165,18 +165,25 @@ Comproba se un ebook se pode emprestar nalgunha biblioteca de eBiblio.
   - método principal: `search(isbn: str) -> list[CopyDTO]`
 - `repositories/odilo.py`: implementación para catálogos con backend Odilo (OAuth2 client_credentials + endpoint JSON `/opac/api/v2/records`)
 - `repositories/ebiblio_web.py`: implementación para catálogos sen Odilo (scraping HTML)
-- `repositories/composite.py`: `CompositeRepository(AvailabilityRepositoryBase)`
-  - percorre os catálogos activos, instancia o repo correspondente segundo `catalog.backend`,
-    mergea e devolve todos os resultados
-  - o manager só fala con este repositorio, sen saber que existen N backends
-- `managers.py`: `AvailabilityManager` — carga local ou delega en `CompositeRepository`
+- `managers.py`: `AvailabilityManager` — orquestra caché e repos; devolve `list[Copy]`
+  - Itera os catálogos activos; por cada un comproba se a `Copy` en caché existe e non está obsoleta
+  - Se a caché é válida, devolve o modelo directamente; se non, chama o repo correspondente e persiste o resultado
+  - Non existe `CompositeRepository`: o manager contén o `_REGISTRY` e despacha directamente ao backend axeitado
 
-**Patrón de selección de backend en CompositeRepository**
-```
-REGISTRY = { ODILO: OdiloRepository, WEB: EbiblioWebRepository }
+**Patrón no manager**
+```python
+_REGISTRY = { Catalog.ODILO: OdiloRepository, Catalog.WEB: EbiblioWebRepository }
+
 for catalog in Catalog.objects.filter(is_active=True):
-    repo = REGISTRY[catalog.backend](catalog)
-    copies += repo.search(isbn)
+    cached = Copy.objects.filter(isbn=isbn, catalog=catalog).first()
+    if cached is not None and not cached.is_stale:
+        results.append(cached)
+    else:
+        fresh = _REGISTRY[catalog.backend](catalog).search(isbn)
+        for dto in fresh:
+            dto.catalog_id = catalog.id
+            dto.source = catalog.name
+            results.append(Copy.update_cache(dto))
 ```
 
 **Notas eBiblio**

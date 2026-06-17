@@ -45,7 +45,7 @@ class Copy(CacheableModel):
             catalog_id=dto.catalog_id,
             defaults={
                 "available": dto.available,
-                "borrow_url": dto.borrow_url,
+                "borrow_url": dto.borrow_url or "",
                 "source": dto.source,
             },
         )
