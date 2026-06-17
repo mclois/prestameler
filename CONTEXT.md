@@ -163,28 +163,44 @@ Comproba se un ebook se pode emprestar nalgunha biblioteca de eBiblio.
 **Capas**
 - `repositories/base.py`: interface `AvailabilityRepositoryBase` (ABC)
   - método principal: `search(isbn: str) -> list[CopyDTO]`
-- `repositories/odilo.py`: implementación para catálogos con backend Odilo (endpoint JSON)
+- `repositories/odilo.py`: implementación para catálogos con backend Odilo (OAuth2 client_credentials + endpoint JSON `/opac/api/v2/records`)
 - `repositories/ebiblio_web.py`: implementación para catálogos sen Odilo (scraping HTML)
-- `repositories/composite.py`: `CompositeRepository(AvailabilityRepositoryBase)`
-  - percorre os catálogos activos, instancia o repo correspondente segundo `catalog.backend`,
-    mergea e devolve todos os resultados
-  - o manager só fala con este repositorio, sen saber que existen N backends
-- `managers.py`: `AvailabilityManager` — carga local ou delega en `CompositeRepository`
+- `managers.py`: `AvailabilityManager` — orquestra caché e repos; devolve `list[Copy]`
+  - Itera os catálogos activos; por cada un comproba se a `Copy` en caché existe e non está obsoleta
+  - Se a caché é válida, devolve o modelo directamente; se non, chama o repo correspondente e persiste o resultado
+  - Non existe `CompositeRepository`: o manager contén o `_REGISTRY` e despacha directamente ao backend axeitado
 
-**Patrón de selección de backend en CompositeRepository**
-```
-REGISTRY = { ODILO: OdiloRepository, WEB: EbiblioWebRepository }
+**Patrón no manager**
+```python
+_REGISTRY = { Catalog.ODILO: OdiloRepository, Catalog.WEB: EbiblioWebRepository }
+
 for catalog in Catalog.objects.filter(is_active=True):
-    repo = REGISTRY[catalog.backend](catalog)
-    copies += repo.search(isbn)
+    cached = Copy.objects.filter(isbn=isbn, catalog=catalog).first()
+    if cached is not None and not cached.is_stale:
+        results.append(cached)
+    else:
+        fresh = _REGISTRY[catalog.backend](catalog).search(isbn)
+        for dto in fresh:
+            dto.catalog_id = catalog.id
+            dto.source = catalog.name
+            results.append(Copy.update_cache(dto))
 ```
 
 **Notas eBiblio**
 - Non hai API pública documentada
-- A plataforma usa **Odilo** como backend; as peticións son chamadas AJAX a un
-  endpoint JSON (patrón: `https://{comunidade}.ebiblio.es/api/v1/resources?isbn=...`)
-- Endpoint a confirmar inspeccionando tráfico de rede (DevTools → Fetch/XHR)
-- Catálogos coñecidos: galicia, extremadura, madrid, andalucia, ... (lista a ampliar)
+- A plataforma usa **Odilo** como backend, baixo `/opac/api/v2/`. Confirmado con
+  `https://biblioteca.ebiblio.cat` (Cataluña):
+  - **Auth**: OAuth2 `client_credentials`. `POST {base_url}/opac/api/v2/token` con
+    `Authorization: Basic <client_id:client_secret>` (par específico de cada catálogo,
+    extraído do JS público do frontend OPAC; gardado en `Catalog.odilo_client_id` /
+    `Catalog.odilo_client_secret`) e body `grant_type=client_credentials` →
+    `{"access_token": ..., "expires_in": ...}`
+  - **Busca**: `GET {base_url}/opac/api/v2/records?facets=format_facet_ss:"EBOOK"&query=allfields_txt:{isbn}&availability=true`
+    con `Authorization: Bearer <token>` → array JSON de rexistros (`id`, `isbn`,
+    `availability.availableToCheckout`, ...)
+  - **Detalle**: `{base_url}/info/{id}` (o `id` Odilo do rexistro, non o ISBN)
+- Catálogos coñecidos: galicia, extremadura (backend `web`), catalunya (backend `odilo`),
+  madrid, andalucia, ... (lista a ampliar)
 
 ### 3. `filter` — Motor de busca e interfaces públicas
 

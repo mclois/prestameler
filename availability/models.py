@@ -15,6 +15,8 @@ class Catalog(models.Model):
     community = models.CharField(max_length=100)
     base_url = models.URLField()
     backend = models.CharField(max_length=20, choices=BACKEND_CHOICES, default=WEB)
+    odilo_client_id = models.CharField(max_length=255, blank=True, default="")
+    odilo_client_secret = models.CharField(max_length=255, blank=True, default="")
     is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:
@@ -43,7 +45,7 @@ class Copy(CacheableModel):
             catalog_id=dto.catalog_id,
             defaults={
                 "available": dto.available,
-                "borrow_url": dto.borrow_url,
+                "borrow_url": dto.borrow_url or "",
                 "source": dto.source,
             },
         )
