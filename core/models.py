@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import ClassVar, Self
+from typing import Any, ClassVar, Self
 
 from django.db import models
 from django.utils import timezone
@@ -38,3 +38,7 @@ class CacheableModel(models.Model):
     def is_stale(self) -> bool:
         expiry = self.cached_at + timedelta(seconds=self.cache_ttl)
         return timezone.now() > expiry
+
+    @classmethod
+    def update_cache(cls, dto: Any) -> Self:
+        raise NotImplementedError
