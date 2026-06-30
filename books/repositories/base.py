@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from books.dtos import BookDTO, CollectionDTO, CollectionFilterDTO, FacetDTO
+from books.dtos import BookDTO, BookFilterDTO, CollectionDTO, CollectionFilterDTO, FacetDTO
 
 
 class BookRepositoryBase(ABC):
@@ -10,10 +10,7 @@ class BookRepositoryBase(ABC):
     def get_collections(self, filter_config: CollectionFilterDTO | None = None) -> FacetDTO: ...
 
     @abstractmethod
-    def search(self, query: str) -> CollectionDTO: ...
+    def search(self, filter_config: BookFilterDTO) -> CollectionDTO | None: ...
 
     @abstractmethod
     def get_book(self, external_id: str) -> BookDTO | None: ...
-
-    @abstractmethod
-    def get_collection(self, external_id: str) -> CollectionDTO | None: ...

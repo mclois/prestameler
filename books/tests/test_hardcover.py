@@ -3,7 +3,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from books.dtos import CollectionFilterDTO
+from books.dtos import BookFilterDTO, CollectionFilterDTO
 from books.repositories.hardcover import HardcoverRepository
 
 _ENDPOINT = "https://api.hardcover.app/v1/graphql"
@@ -76,7 +76,7 @@ def _list_node(
     }
 
 
-class TestSearch:
+class TestSearchByQuery:
     def test_returns_collection_with_books_from_hits(self, monkeypatch):
         monkeypatch.setattr(
             httpx, "post",
@@ -85,7 +85,7 @@ class TestSearch:
             ),
         )
 
-        col = HardcoverRepository().search("dune")
+        col = HardcoverRepository().search(BookFilterDTO(search_query="dune"))
 
         assert col.external_id == "search:dune"
         assert col.title == "dune"
@@ -102,7 +102,7 @@ class TestSearch:
             ),
         )
 
-        col = HardcoverRepository().search("dune")
+        col = HardcoverRepository().search(BookFilterDTO(search_query="dune"))
 
         assert col.book_count == 1
 
@@ -112,7 +112,7 @@ class TestSearch:
             lambda *a, **k: _gql_response({"search": {"results": {"hits": []}}}),
         )
 
-        col = HardcoverRepository().search("xyzzy")
+        col = HardcoverRepository().search(BookFilterDTO(search_query="xyzzy"))
 
         assert col.books == []
         assert col.book_count == 0
@@ -123,7 +123,7 @@ class TestSearch:
             lambda *a, **k: _gql_response({"search": {"results": {"hits": []}}}),
         )
 
-        col = HardcoverRepository().search("  Dune  ")
+        col = HardcoverRepository().search(BookFilterDTO(search_query="  Dune  "))
 
         assert col.external_id == "search:dune"
         assert col.title == "Dune"
@@ -137,9 +137,64 @@ class TestSearch:
 
         monkeypatch.setattr(httpx, "post", fake_post)
 
-        HardcoverRepository().search("dune")
+        HardcoverRepository().search(BookFilterDTO(search_query="dune"))
 
         assert captured["headers"]["Authorization"] == "Bearer test-token"
+
+
+class TestSearchByCollection:
+    def test_returns_collection_dto(self, monkeypatch):
+        monkeypatch.setattr(
+            httpx, "post",
+            lambda *a, **k: _gql_response({"lists": [_list_node()]}),
+        )
+
+        col = HardcoverRepository().search(BookFilterDTO(collection_id="3"))
+
+        assert col is not None
+        assert col.external_id == "3"
+        assert col.title == "NPR Top 100"
+        assert col.description == "Science fiction picks"
+        assert col.book_count == 100
+        assert len(col.books) == 1
+
+    def test_returns_none_when_not_found(self, monkeypatch):
+        monkeypatch.setattr(
+            httpx, "post",
+            lambda *a, **k: _gql_response({"lists": []}),
+        )
+
+        col = HardcoverRepository().search(BookFilterDTO(collection_id="99999"))
+
+        assert col is None
+
+
+class TestSearchByTag:
+    def test_returns_collection_dto(self, monkeypatch):
+        monkeypatch.setattr(
+            httpx, "post",
+            lambda *a, **k: _gql_response({"tags": [_tag_node()]}),
+        )
+
+        col = HardcoverRepository().search(BookFilterDTO(tag_id=7))
+
+        assert col is not None
+        assert col.external_id == "tag:7"
+        assert col.title == "Fantasy"
+        assert col.book_count == 42
+        assert col.filter_config.tag_id == 7
+        assert len(col.books) == 1
+        assert col.books[0].title == "Dune"
+
+    def test_returns_none_when_not_found(self, monkeypatch):
+        monkeypatch.setattr(
+            httpx, "post",
+            lambda *a, **k: _gql_response({"tags": []}),
+        )
+
+        col = HardcoverRepository().search(BookFilterDTO(tag_id=99999))
+
+        assert col is None
 
 
 class TestGetBook:
@@ -313,30 +368,3 @@ class TestGetCollectionsByTagCategory:
         facet = HardcoverRepository().get_collections(CollectionFilterDTO(category="genre"))
 
         assert facet.collections == []
-
-
-class TestGetCollection:
-    def test_returns_collection_dto(self, monkeypatch):
-        monkeypatch.setattr(
-            httpx, "post",
-            lambda *a, **k: _gql_response({"lists": [_list_node()]}),
-        )
-
-        col = HardcoverRepository().get_collection("3")
-
-        assert col is not None
-        assert col.external_id == "3"
-        assert col.title == "NPR Top 100"
-        assert col.description == "Science fiction picks"
-        assert col.book_count == 100
-        assert len(col.books) == 1
-
-    def test_returns_none_when_not_found(self, monkeypatch):
-        monkeypatch.setattr(
-            httpx, "post",
-            lambda *a, **k: _gql_response({"lists": []}),
-        )
-
-        col = HardcoverRepository().get_collection("99999")
-
-        assert col is None

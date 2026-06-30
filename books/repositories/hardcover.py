@@ -98,6 +98,25 @@ query GetTagsByCategory($category: String!, $limit: Int!) {
 }
 """
 
+_GET_TAG_QUERY = """
+query GetTag($id: bigint!) {
+  tags(where: {id: {_eq: $id}}, limit: 1) {
+    id
+    tag
+    count
+    taggings(limit: 50, where: {taggable_type: {_eq: "Book"}}) {
+      book {
+        id
+        title
+        contributions { author { name } }
+        image { url }
+        rating
+      }
+    }
+  }
+}
+"""
+
 # Maps CollectionFilterDTO.category -> (Hardcover tag_categories.category, facet slug, facet title)
 _TAG_CATEGORIES = {
     "genre": ("Genre", "by-genre", "By Genre"),
@@ -163,24 +182,15 @@ class HardcoverRepository(BookRepositoryBase):
             collections=collections,
         )
 
-    def search(self, query: str) -> CollectionDTO:
-        query = query.strip()
-        data = self._gql(_SEARCH_QUERY, {"query": query})
-        hits = (data["search"]["results"] or {}).get("hits") or []
-        books = [self._book_dto(hit["document"]) for hit in hits]
-        return CollectionDTO(
-            external_id=f"search:{query.lower()}",
-            source=self.SOURCE,
-            title=query,
-            description=f'Books matching "{query}"',
-            cover_image="",
-            book_count=len(books),
-            filter_config=BookFilterDTO(search_query=query),
-            books=books,
-        )
+    def search(self, filter_config: BookFilterDTO) -> CollectionDTO | None:
+        if filter_config.collection_id:
+            return self._search_by_collection(filter_config)
+        if filter_config.tag_id:
+            return self._search_by_tag(filter_config)
+        return self._search_by_query(filter_config)
 
-    def get_collection(self, external_id: str) -> CollectionDTO | None:
-        data = self._gql(_GET_COLLECTION_QUERY, {"id": int(external_id)})
+    def _search_by_collection(self, filter_config: BookFilterDTO) -> CollectionDTO | None:
+        data = self._gql(_GET_COLLECTION_QUERY, {"id": int(filter_config.collection_id)})
         lists = data.get("lists") or []
         if not lists:
             return None
@@ -195,6 +205,38 @@ class HardcoverRepository(BookRepositoryBase):
             selection_author=(lst.get("user") or {}).get("username") or "",
             filter_config=BookFilterDTO(collection_id=str(lst["id"])),
             books=[self._book_dto(node["book"]) for node in lst.get("list_books") or []],
+        )
+
+    def _search_by_tag(self, filter_config: BookFilterDTO) -> CollectionDTO | None:
+        data = self._gql(_GET_TAG_QUERY, {"id": filter_config.tag_id})
+        tags = data.get("tags") or []
+        if not tags:
+            return None
+        tag = tags[0]
+        return CollectionDTO(
+            external_id=f"tag:{tag['id']}",
+            source=self.SOURCE,
+            title=tag["tag"],
+            description=f'Books tagged "{tag["tag"]}"',
+            book_count=tag.get("count") or 0,
+            filter_config=BookFilterDTO(tag_id=tag["id"]),
+            books=[self._book_dto(node["book"]) for node in tag.get("taggings") or []],
+        )
+
+    def _search_by_query(self, filter_config: BookFilterDTO) -> CollectionDTO:
+        query = (filter_config.search_query or "").strip()
+        data = self._gql(_SEARCH_QUERY, {"query": query})
+        hits = (data["search"]["results"] or {}).get("hits") or []
+        books = [self._book_dto(hit["document"]) for hit in hits]
+        return CollectionDTO(
+            external_id=f"search:{query.lower()}",
+            source=self.SOURCE,
+            title=query,
+            description=f'Books matching "{query}"',
+            cover_image="",
+            book_count=len(books),
+            filter_config=BookFilterDTO(search_query=query),
+            books=books,
         )
 
     def get_book(self, external_id: str) -> BookDTO | None:
