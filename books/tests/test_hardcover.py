@@ -76,7 +76,7 @@ def _list_node(
 
 
 class TestSearch:
-    def test_returns_book_dtos_from_hits(self, monkeypatch):
+    def test_returns_collection_with_books_from_hits(self, monkeypatch):
         monkeypatch.setattr(
             httpx, "post",
             lambda *a, **k: _gql_response(
@@ -84,23 +84,48 @@ class TestSearch:
             ),
         )
 
-        books = HardcoverRepository().search("dune")
+        col = HardcoverRepository().search("dune")
 
-        assert len(books) == 1
-        assert books[0].external_id == "1"
-        assert books[0].title == "Dune"
-        assert books[0].author == "Frank Herbert"
-        assert books[0].source == "hardcover"
+        assert col.external_id == "search:dune"
+        assert col.title == "dune"
+        assert col.source == "hardcover"
+        assert len(col.books) == 1
+        assert col.books[0].title == "Dune"
+        assert col.books[0].author == "Frank Herbert"
 
-    def test_returns_empty_list_when_no_hits(self, monkeypatch):
+    def test_book_count_reflects_number_of_hits(self, monkeypatch):
+        monkeypatch.setattr(
+            httpx, "post",
+            lambda *a, **k: _gql_response(
+                {"search": {"results": {"hits": [{"document": _book_node()}]}}}
+            ),
+        )
+
+        col = HardcoverRepository().search("dune")
+
+        assert col.book_count == 1
+
+    def test_returns_empty_collection_when_no_hits(self, monkeypatch):
         monkeypatch.setattr(
             httpx, "post",
             lambda *a, **k: _gql_response({"search": {"results": {"hits": []}}}),
         )
 
-        books = HardcoverRepository().search("xyzzy")
+        col = HardcoverRepository().search("xyzzy")
 
-        assert books == []
+        assert col.books == []
+        assert col.book_count == 0
+
+    def test_normalizes_query_for_external_id(self, monkeypatch):
+        monkeypatch.setattr(
+            httpx, "post",
+            lambda *a, **k: _gql_response({"search": {"results": {"hits": []}}}),
+        )
+
+        col = HardcoverRepository().search("  Dune  ")
+
+        assert col.external_id == "search:dune"
+        assert col.title == "Dune"
 
     def test_sends_bearer_token(self, monkeypatch):
         captured: dict = {}

@@ -102,10 +102,20 @@ class HardcoverRepository(BookRepositoryBase):
             for lst in data["lists"]
         ]
 
-    def search(self, query: str) -> list[BookDTO]:
+    def search(self, query: str) -> CollectionDTO:
+        query = query.strip()
         data = self._gql(_SEARCH_QUERY, {"query": query})
         hits = (data["search"]["results"] or {}).get("hits") or []
-        return [self._book_dto(hit["document"]) for hit in hits]
+        books = [self._book_dto(hit["document"]) for hit in hits]
+        return CollectionDTO(
+            external_id=f"search:{query.lower()}",
+            source=self.SOURCE,
+            title=query,
+            description=f'Books matching "{query}"',
+            cover_image="",
+            book_count=len(books),
+            books=books,
+        )
 
     def get_collection(self, external_id: str) -> CollectionDTO | None:
         data = self._gql(_GET_COLLECTION_QUERY, {"id": int(external_id)})
