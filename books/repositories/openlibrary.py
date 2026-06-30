@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from books.dtos import BookDTO, CollectionDTO
+from books.dtos import BookDTO, CollectionDTO, CollectionFilterDTO
 from books.repositories.base import BookRepositoryBase
 
 
@@ -9,7 +9,7 @@ class OpenLibraryRepository(BookRepositoryBase):
 
     BASE_URL = "https://openlibrary.org"
 
-    def get_collections(self) -> list[CollectionDTO]:
+    def get_collections(self, filter_config: CollectionFilterDTO | None = None) -> list[CollectionDTO]:
         raise NotImplementedError
 
     def search(self, query: str) -> list[BookDTO]:

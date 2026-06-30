@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from books.dtos import BookDTO, CollectionDTO
+from books.dtos import BookDTO, CollectionDTO, CollectionFilterDTO, FacetDTO
 
 
 class BookRepositoryBase(ABC):
     @abstractmethod
-    def get_collections(self) -> list[CollectionDTO]: ...
+    def get_collections(self, filter_config: CollectionFilterDTO | None = None) -> FacetDTO: ...
 
     @abstractmethod
     def search(self, query: str) -> CollectionDTO: ...

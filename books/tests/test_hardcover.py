@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
+from books.dtos import CollectionFilterDTO
 from books.repositories.hardcover import HardcoverRepository
 
 _ENDPOINT = "https://api.hardcover.app/v1/graphql"
@@ -197,23 +198,48 @@ class TestGetBook:
         assert book is None
 
 
+def _tag_node(
+    id: int = 7,
+    tag: str = "Fantasy",
+    count: int = 42,
+    books: list | None = None,
+) -> dict:
+    return {
+        "id": id,
+        "tag": tag,
+        "count": count,
+        "taggings": [{"book": b} for b in (books if books is not None else [_book_node()])],
+    }
+
+
 class TestGetCollections:
-    def test_returns_collection_list(self, monkeypatch):
+    def test_returns_featured_facet(self, monkeypatch):
         monkeypatch.setattr(
             httpx, "post",
             lambda *a, **k: _gql_response({"lists": [_list_node()]}),
         )
 
-        collections = HardcoverRepository().get_collections()
+        facet = HardcoverRepository().get_collections()
 
-        assert len(collections) == 1
-        col = collections[0]
+        assert facet.slug == "featured"
+        assert facet.source == "hardcover"
+        assert facet.filter_config.featured is True
+
+    def test_facet_contains_collections(self, monkeypatch):
+        monkeypatch.setattr(
+            httpx, "post",
+            lambda *a, **k: _gql_response({"lists": [_list_node()]}),
+        )
+
+        facet = HardcoverRepository().get_collections()
+
+        assert len(facet.collections) == 1
+        col = facet.collections[0]
         assert col.external_id == "3"
         assert col.title == "NPR Top 100"
-        assert col.description == "Science fiction picks"
         assert col.book_count == 100
         assert col.selection_author == "npr"
-        assert col.source == "hardcover"
+        assert col.filter_config.collection_id == "3"
 
     def test_includes_books_within_each_collection(self, monkeypatch):
         monkeypatch.setattr(
@@ -221,18 +247,72 @@ class TestGetCollections:
             lambda *a, **k: _gql_response({"lists": [_list_node(books=[_book_node()])]}),
         )
 
-        col = HardcoverRepository().get_collections()[0]
+        col = HardcoverRepository().get_collections().collections[0]
 
         assert len(col.books) == 1
         assert col.books[0].title == "Dune"
 
-    def test_returns_empty_list_when_no_featured_lists(self, monkeypatch):
+    def test_returns_empty_facet_when_no_featured_lists(self, monkeypatch):
         monkeypatch.setattr(
             httpx, "post",
             lambda *a, **k: _gql_response({"lists": []}),
         )
 
-        assert HardcoverRepository().get_collections() == []
+        facet = HardcoverRepository().get_collections()
+
+        assert facet.collections == []
+
+
+class TestGetCollectionsByTagCategory:
+    def test_returns_by_genre_facet(self, monkeypatch):
+        monkeypatch.setattr(
+            httpx, "post",
+            lambda *a, **k: _gql_response({"tags": [_tag_node()]}),
+        )
+
+        facet = HardcoverRepository().get_collections(CollectionFilterDTO(category="genre"))
+
+        assert facet.slug == "by-genre"
+        assert facet.source == "hardcover"
+        assert facet.filter_config.category == "genre"
+
+    def test_returns_by_mood_facet(self, monkeypatch):
+        monkeypatch.setattr(
+            httpx, "post",
+            lambda *a, **k: _gql_response({"tags": [_tag_node()]}),
+        )
+
+        facet = HardcoverRepository().get_collections(CollectionFilterDTO(category="mood"))
+
+        assert facet.slug == "by-mood"
+        assert facet.filter_config.category == "mood"
+
+    def test_facet_contains_one_collection_per_tag(self, monkeypatch):
+        monkeypatch.setattr(
+            httpx, "post",
+            lambda *a, **k: _gql_response({"tags": [_tag_node()]}),
+        )
+
+        facet = HardcoverRepository().get_collections(CollectionFilterDTO(category="genre"))
+
+        assert len(facet.collections) == 1
+        col = facet.collections[0]
+        assert col.external_id == "tag:7"
+        assert col.title == "Fantasy"
+        assert col.book_count == 42
+        assert col.filter_config.tag_id == 7
+        assert len(col.books) == 1
+        assert col.books[0].title == "Dune"
+
+    def test_returns_empty_facet_when_no_tags(self, monkeypatch):
+        monkeypatch.setattr(
+            httpx, "post",
+            lambda *a, **k: _gql_response({"tags": []}),
+        )
+
+        facet = HardcoverRepository().get_collections(CollectionFilterDTO(category="genre"))
+
+        assert facet.collections == []
 
 
 class TestGetCollection:

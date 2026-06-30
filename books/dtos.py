@@ -51,6 +51,7 @@ class CollectionDTO(BaseModel):
 
 
 class CollectionFilterDTO(BaseModel):
+    featured: bool = False
     category: str | None = None
     tag_ids: list[int] | None = None
     user: str | None = None
@@ -60,6 +61,8 @@ class CollectionFilterDTO(BaseModel):
     @property
     def cache_key(self) -> str:
         parts = []
+        if self.featured:
+            parts.append("featured")
         if self.category:
             parts.append(self.category)
         if self.tag_ids:
