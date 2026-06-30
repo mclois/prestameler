@@ -3,7 +3,7 @@ from __future__ import annotations
 import httpx
 from django.conf import settings
 
-from books.dtos import BookDTO, CollectionDTO, EditionDTO
+from books.dtos import BookDTO, BookFilterDTO, CollectionDTO, EditionDTO
 from books.repositories.base import BookRepositoryBase
 
 _ENDPOINT = "https://api.hardcover.app/v1/graphql"
@@ -97,6 +97,7 @@ class HardcoverRepository(BookRepositoryBase):
                 cover_image="",
                 book_count=lst.get("books_count") or 0,
                 selection_author=(lst.get("user") or {}).get("username") or "",
+                filter_config=BookFilterDTO(collection_id=str(lst["id"])),
                 books=[self._book_dto(node["book"]) for node in lst.get("list_books") or []],
             )
             for lst in data["lists"]
@@ -114,6 +115,7 @@ class HardcoverRepository(BookRepositoryBase):
             description=f'Books matching "{query}"',
             cover_image="",
             book_count=len(books),
+            filter_config=BookFilterDTO(search_query=query),
             books=books,
         )
 
@@ -131,6 +133,7 @@ class HardcoverRepository(BookRepositoryBase):
             cover_image="",
             book_count=lst.get("books_count") or 0,
             selection_author=(lst.get("user") or {}).get("username") or "",
+            filter_config=BookFilterDTO(collection_id=str(lst["id"])),
             books=[self._book_dto(node["book"]) for node in lst.get("list_books") or []],
         )
 

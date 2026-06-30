@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.db import models
 
-from books.dtos import BookDTO, CollectionDTO, CollectionFilterDTO, EditionDTO, FacetDTO
+from books.dtos import BookDTO, BookFilterDTO, CollectionDTO, CollectionFilterDTO, EditionDTO, FacetDTO
 from core.models import CacheableModel
 
 
@@ -15,6 +15,7 @@ class Collection(CacheableModel):
     cover_image = models.URLField(blank=True)
     book_count = models.PositiveIntegerField(default=0)
     selection_author = models.CharField(max_length=255, blank=True)
+    filter_config = models.JSONField(default=dict)
     books = models.ManyToManyField("Book", through="CollectionBook", related_name="collections")
 
     class Meta:
@@ -34,6 +35,7 @@ class Collection(CacheableModel):
                 "cover_image": dto.cover_image,
                 "book_count": dto.book_count,
                 "selection_author": dto.selection_author,
+                "filter_config": dto.filter_config.model_dump(),
             },
         )
         collection.collection_books.all().delete()
