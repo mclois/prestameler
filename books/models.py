@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.db import models
 
-from books.dtos import BookDTO, CollectionDTO, EditionDTO
+from books.dtos import BookDTO, BookFilterDTO, CollectionDTO, CollectionFilterDTO, EditionDTO, FacetDTO
 from core.models import CacheableModel
 
 
@@ -15,6 +15,7 @@ class Collection(CacheableModel):
     cover_image = models.URLField(blank=True)
     book_count = models.PositiveIntegerField(default=0)
     selection_author = models.CharField(max_length=255, blank=True)
+    filter_config = models.JSONField(default=dict)
     books = models.ManyToManyField("Book", through="CollectionBook", related_name="collections")
 
     class Meta:
@@ -34,6 +35,7 @@ class Collection(CacheableModel):
                 "cover_image": dto.cover_image,
                 "book_count": dto.book_count,
                 "selection_author": dto.selection_author,
+                "filter_config": dto.filter_config.model_dump(),
             },
         )
         collection.collection_books.all().delete()
@@ -113,4 +115,54 @@ class CollectionBook(models.Model):
 
     class Meta:
         unique_together = [("collection", "book")]
+        ordering = ["order"]
+
+
+class Facet(CacheableModel):
+    CID_FIELD = "slug"
+    DEFAULT_CACHE_TTL = 3600
+
+    slug = models.CharField(max_length=255, db_index=True)
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    filter_config = models.JSONField(default=dict)
+    collections = models.ManyToManyField(
+        Collection,
+        through="FacetCollection",
+        related_name="facets",
+        blank=True,
+    )
+
+    class Meta:
+        unique_together = [("slug", "source")]
+
+    def __str__(self) -> str:
+        return self.title
+
+    @classmethod
+    def update_cache(cls, dto: FacetDTO, collections: list[Collection]) -> Facet:
+        facet, _ = cls.objects.update_or_create(
+            slug=dto.slug,
+            source=dto.source,
+            defaults={
+                "title": dto.title,
+                "description": dto.description,
+                "filter_config": dto.filter_config.model_dump(),
+            },
+        )
+        facet.facet_collections.all().delete()
+        FacetCollection.objects.bulk_create([
+            FacetCollection(facet=facet, collection=collection, order=i)
+            for i, collection in enumerate(collections)
+        ])
+        return facet
+
+
+class FacetCollection(models.Model):
+    facet = models.ForeignKey(Facet, on_delete=models.CASCADE, related_name="facet_collections")
+    collection = models.ForeignKey(Collection, on_delete=models.CASCADE, related_name="facet_collections")
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = [("facet", "collection")]
         ordering = ["order"]
