@@ -95,7 +95,7 @@ class HardcoverRepository(BookRepositoryBase):
     SOURCE = "hardcover"
 
     def fetch(self, ...) -> Book:
-        return Book(source=self.SOURCE, hardcover_id=..., ...)
+        return Book(source=self.SOURCE, external_id=..., ...)
 ```
 
 **Patrón no manager**

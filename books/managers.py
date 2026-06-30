@@ -14,5 +14,5 @@ class BookManager:
     def search(self, query: str) -> list[BookDTO]:
         raise NotImplementedError
 
-    def get_book(self, hardcover_id: str) -> BookDTO | None:
+    def get_book(self, external_id: str) -> BookDTO | None:
         raise NotImplementedError
