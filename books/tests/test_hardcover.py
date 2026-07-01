@@ -44,7 +44,7 @@ def _edition_node(
     isbn_13: str | None = "9780441013593",
     isbn_10: str | None = None,
     language: str = "en",
-    physical_format: str = "ebook",
+    reading_format: str = "ebook",
     publisher: str = "Ace",
     release_date: str = "2019-01-01",
 ) -> dict:
@@ -52,8 +52,8 @@ def _edition_node(
         "isbn_13": isbn_13,
         "isbn_10": isbn_10,
         "language": {"code2": language},
-        "physical_format": physical_format,
-        "publisher": publisher,
+        "reading_format": {"format": reading_format},
+        "publisher": {"name": publisher},
         "release_date": release_date,
     }
 
