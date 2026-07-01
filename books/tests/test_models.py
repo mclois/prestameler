@@ -4,8 +4,8 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from books.dtos import BookDTO, CollectionDTO, EditionDTO
-from books.models import Book, Collection, CollectionBook, Edition
+from books.dtos import BookDTO, BookFilterDTO, CollectionDTO, CollectionFilterDTO, EditionDTO
+from books.models import Book, Collection, CollectionBook, Edition, Facet
 
 pytestmark = pytest.mark.django_db
 
@@ -134,6 +134,19 @@ class TestCollectionCRUD:
         deleted_count, _ = Collection.objects.filter(pk=999999).delete()
 
         assert deleted_count == 0
+
+    def test_filter_config_returns_book_filter_dto(self, collection):
+        collection.filter_config_raw = {"search_query": "dune"}
+        collection.save()
+
+        collection.refresh_from_db()
+        filter_config = collection.filter_config
+
+        assert isinstance(filter_config, BookFilterDTO)
+        assert filter_config.search_query == "dune"
+
+    def test_filter_config_defaults_to_empty_book_filter_dto(self, collection):
+        assert collection.filter_config == BookFilterDTO()
 
 
 class TestBookCRUD:
@@ -513,3 +526,23 @@ class TestEditionUpdateCache:
 
         assert other_edition.pk != edition.pk
         assert Edition.objects.filter(isbn=edition.isbn).count() == 2
+
+
+class TestFacetFilterConfig:
+    def test_filter_config_returns_collection_filter_dto(self):
+        facet = Facet.objects.create(
+            slug="by-genre",
+            title="By Genre",
+            filter_config_raw={"category": "genre"},
+            source="hardcover",
+        )
+
+        filter_config = facet.filter_config
+
+        assert isinstance(filter_config, CollectionFilterDTO)
+        assert filter_config.category == "genre"
+
+    def test_filter_config_defaults_to_empty_collection_filter_dto(self):
+        facet = Facet.objects.create(slug="featured", title="Featured", source="hardcover")
+
+        assert facet.filter_config == CollectionFilterDTO()

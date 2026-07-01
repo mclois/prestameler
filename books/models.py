@@ -15,7 +15,7 @@ class Collection(CacheableModel):
     cover_image = models.URLField(blank=True)
     book_count = models.PositiveIntegerField(default=0)
     selection_author = models.CharField(max_length=255, blank=True)
-    filter_config = models.JSONField(default=dict)
+    filter_config_raw = models.JSONField(default=dict, db_column="filter_config")
     books = models.ManyToManyField("Book", through="CollectionBook", related_name="collections")
 
     class Meta:
@@ -23,6 +23,10 @@ class Collection(CacheableModel):
 
     def __str__(self) -> str:
         return self.title
+
+    @property
+    def filter_config(self) -> BookFilterDTO:
+        return BookFilterDTO.model_validate(self.filter_config_raw)
 
     @classmethod
     def update_cache(cls, dto: CollectionDTO, books: list[Book]) -> Collection:
@@ -35,13 +39,14 @@ class Collection(CacheableModel):
                 "cover_image": dto.cover_image,
                 "book_count": dto.book_count,
                 "selection_author": dto.selection_author,
-                "filter_config": dto.filter_config.model_dump(),
+                "filter_config_raw": dto.filter_config.model_dump(),
             },
         )
+        unique_books = list(dict.fromkeys(books))
         collection.collection_books.all().delete()
         CollectionBook.objects.bulk_create([
             CollectionBook(collection=collection, book=book, order=i)
-            for i, book in enumerate(books)
+            for i, book in enumerate(unique_books)
         ])
         return collection
 
@@ -125,7 +130,7 @@ class Facet(CacheableModel):
     slug = models.CharField(max_length=255, db_index=True)
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    filter_config = models.JSONField(default=dict)
+    filter_config_raw = models.JSONField(default=dict, db_column="filter_config")
     collections = models.ManyToManyField(
         Collection,
         through="FacetCollection",
@@ -139,6 +144,10 @@ class Facet(CacheableModel):
     def __str__(self) -> str:
         return self.title
 
+    @property
+    def filter_config(self) -> CollectionFilterDTO:
+        return CollectionFilterDTO.model_validate(self.filter_config_raw)
+
     @classmethod
     def update_cache(cls, dto: FacetDTO, collections: list[Collection]) -> Facet:
         facet, _ = cls.objects.update_or_create(
@@ -147,13 +156,14 @@ class Facet(CacheableModel):
             defaults={
                 "title": dto.title,
                 "description": dto.description,
-                "filter_config": dto.filter_config.model_dump(),
+                "filter_config_raw": dto.filter_config.model_dump(),
             },
         )
+        unique_collections = list(dict.fromkeys(collections))
         facet.facet_collections.all().delete()
         FacetCollection.objects.bulk_create([
             FacetCollection(facet=facet, collection=collection, order=i)
-            for i, collection in enumerate(collections)
+            for i, collection in enumerate(unique_collections)
         ])
         return facet
 
