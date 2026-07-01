@@ -7,6 +7,7 @@ class EditionDTO(BaseModel):
     isbn: str
     source: str = ""
     format: str = ""
+    language: str = ""
     publisher: str = ""
     published_date: str = ""
 
@@ -17,7 +18,6 @@ class BookDTO(BaseModel):
     title: str
     author: str = ""
     cover_image: str = ""
-    language: str = ""
     rating: float | None = None
     editions: list[EditionDTO] = []
 

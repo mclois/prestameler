@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import httpx
 from django.conf import settings
+from django.templatetags.i18n import language
 
 from books.dtos import BookDTO, BookFilterDTO, CollectionDTO, CollectionFilterDTO, EditionDTO, FacetDTO
 from books.repositories.base import BookRepositoryBase
@@ -19,18 +20,26 @@ query SearchBooks($query: String!) {
 
 _GET_BOOK_QUERY = """
 query GetBook($id: Int!) {
-  books(where: {id: {_eq: $id}}, limit: 1) {
+  books(
+    where: {
+      id: { _eq: $id }
+      editions: { reading_format: { format: { _eq: "Ebook" } } }
+    }
+    limit: 1
+  ) {
     id
     title
     contributions { author { name } }
     image { url }
-    language
     rating
-    editions {
+    editions(
+      where: { reading_format: { format: { _eq: "Ebook" } } }
+    ) {
       isbn_10
       isbn_13
-      physical_format
-      publisher
+      language { code2 } 
+      reading_format { format }
+      publisher { name }
       release_date
     }
   }
@@ -39,13 +48,23 @@ query GetBook($id: Int!) {
 
 _GET_COLLECTION_QUERY = """
 query GetList($id: Int!) {
-  lists(where: {id: {_eq: $id}}, limit: 1) {
+  lists(
+    where: {
+      id: {_eq: $id}
+      list_books: { book: { editions: { reading_format: { format: { _eq: "Ebook" } } } } }
+    },
+    limit: 1
+  ) {
     id
     name
     description
     books_count
     user { username }
-    list_books(limit: 100, order_by: {position: asc}) {
+    list_books(
+      limit: 100,
+      order_by: {position: asc},
+      where: { book: { editions: { reading_format: { format: { _eq: "Ebook" } } } } }
+    ) {
       book {
         id
         title
@@ -60,13 +79,23 @@ query GetList($id: Int!) {
 
 _GET_FEATURED_COLLECTIONS_QUERY = """
 query GetFeaturedLists {
-  lists(where: {featured: {_eq: true}}, limit: 20) {
+  lists(
+    limit: 20,
+    where: {
+      featured: {_eq: true}
+      list_books: { book: { editions : { reading_format: { format: { _eq: "Ebook" } } } } }
+    }
+  ) {
     id
     name
     description
     books_count
     user { username }
-    list_books(limit: 50, order_by: {position: asc}) {
+    list_books(
+      limit: 50,
+      order_by: { position: asc }
+      where: { book: { editions: { reading_format: { format: { _eq: "Ebook" } } } } }
+    ) {
       book {
         id
         title
@@ -81,11 +110,24 @@ query GetFeaturedLists {
 
 _GET_TAGS_QUERY = """
 query GetTagsByCategory($category: String!, $limit: Int!) {
-  tags(where: {tag_category: {category: {_eq: $category}}}, limit: $limit, order_by: {count: desc}) {
+  tags(
+    where: {
+      tag_category: {category: {_eq: $category}}
+      taggings: { book: { editions: { reading_format: { format: { _eq: "Ebook" } } } } }
+    },
+    limit: $limit,
+    order_by: {count: desc}
+  ) {
     id
     tag
     count
-    taggings(limit: 50, where: {taggable_type: {_eq: "Book"}}) {
+    taggings(
+      limit: 50,
+      where: {
+        taggable_type: { _eq: "Book" }
+        book: { editions: { reading_format: { format: { _eq: "Ebook" } } } }
+      }
+    ) {
       book {
         id
         title
@@ -100,11 +142,23 @@ query GetTagsByCategory($category: String!, $limit: Int!) {
 
 _GET_TAG_QUERY = """
 query GetTag($id: bigint!) {
-  tags(where: {id: {_eq: $id}}, limit: 1) {
+  tags(
+    where: {
+      id: {_eq: $id}
+      taggings: { book: { editions: { reading_format: { format: { _eq: "Ebook" } } } } }
+    },
+    limit: 1
+  ) {
     id
     tag
     count
-    taggings(limit: 50, where: {taggable_type: {_eq: "Book"}}) {
+    taggings(
+      limit: 50,
+      where: {
+        taggable_type: { _eq: "Book" }
+        book: { editions: { reading_format: { format: { _eq: "Ebook" } } } }
+      }
+    ) {
       book {
         id
         title
@@ -251,8 +305,9 @@ class HardcoverRepository(BookRepositoryBase):
             EditionDTO(
                 isbn=ed.get("isbn_13") or ed.get("isbn_10") or "",
                 source=self.SOURCE,
-                format=ed.get("physical_format") or "",
-                publisher=ed.get("publisher") or "",
+                language=(ed.get("language") or {}).get("code2") or "",
+                format=(ed.get("reading_format") or {}).get("format") or "",
+                publisher=(ed.get("publisher") or {}).get("name") or "",
                 published_date=ed.get("release_date") or "",
             )
             for ed in node.get("editions") or []
@@ -264,7 +319,6 @@ class HardcoverRepository(BookRepositoryBase):
             title=node.get("title") or "",
             author=author,
             cover_image=(node.get("image") or {}).get("url") or "",
-            language=node.get("language") or "",
             rating=node.get("rating"),
             editions=editions,
         )

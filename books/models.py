@@ -53,7 +53,6 @@ class Book(CacheableModel):
     title = models.CharField(max_length=255)
     author = models.CharField(max_length=255, blank=True)
     cover_image = models.URLField(blank=True)
-    language = models.CharField(max_length=10, blank=True)
     rating = models.FloatField(null=True, blank=True)
 
     class Meta:
@@ -71,7 +70,6 @@ class Book(CacheableModel):
                 "title": dto.title,
                 "author": dto.author,
                 "cover_image": dto.cover_image,
-                "language": dto.language,
                 "rating": dto.rating,
             },
         )
@@ -83,6 +81,7 @@ class Edition(CacheableModel):
 
     book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name="editions")
     isbn = models.CharField(max_length=13, db_index=True)
+    language = models.CharField(max_length=10, blank=True)
     format = models.CharField(max_length=50, blank=True)
     publisher = models.CharField(max_length=255, blank=True)
     published_date = models.CharField(max_length=20, blank=True)
@@ -101,6 +100,7 @@ class Edition(CacheableModel):
             defaults={
                 "book": book,
                 "format": dto.format,
+                "language": dto.language,
                 "publisher": dto.publisher,
                 "published_date": dto.published_date,
             },
