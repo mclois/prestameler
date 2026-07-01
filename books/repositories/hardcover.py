@@ -24,11 +24,11 @@ query GetBook($id: Int!) {
     title
     contributions { author { name } }
     image { url }
-    language
     rating
     editions {
       isbn_10
       isbn_13
+      language { code2 }
       physical_format
       publisher
       release_date
@@ -251,6 +251,7 @@ class HardcoverRepository(BookRepositoryBase):
             EditionDTO(
                 isbn=ed.get("isbn_13") or ed.get("isbn_10") or "",
                 source=self.SOURCE,
+                language=(ed.get("language") or {}).get("code2") or "",
                 format=ed.get("physical_format") or "",
                 publisher=ed.get("publisher") or "",
                 published_date=ed.get("release_date") or "",
@@ -264,7 +265,6 @@ class HardcoverRepository(BookRepositoryBase):
             title=node.get("title") or "",
             author=author,
             cover_image=(node.get("image") or {}).get("url") or "",
-            language=node.get("language") or "",
             rating=node.get("rating"),
             editions=editions,
         )

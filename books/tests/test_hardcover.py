@@ -26,7 +26,6 @@ def _book_node(
     author: str = "Frank Herbert",
     image_url: str = "https://example.com/dune.jpg",
     rating: float = 4.5,
-    language: str = "en",
     editions: list | None = None,
 ) -> dict:
     node: dict = {
@@ -35,7 +34,6 @@ def _book_node(
         "contributions": [{"author": {"name": author}}],
         "image": {"url": image_url},
         "rating": rating,
-        "language": language,
     }
     if editions is not None:
         node["editions"] = editions
@@ -45,6 +43,7 @@ def _book_node(
 def _edition_node(
     isbn_13: str | None = "9780441013593",
     isbn_10: str | None = None,
+    language: str = "en",
     physical_format: str = "ebook",
     publisher: str = "Ace",
     release_date: str = "2019-01-01",
@@ -52,6 +51,7 @@ def _edition_node(
     return {
         "isbn_13": isbn_13,
         "isbn_10": isbn_10,
+        "language": {"code2": language},
         "physical_format": physical_format,
         "publisher": publisher,
         "release_date": release_date,
@@ -208,7 +208,6 @@ class TestGetBook:
 
         assert book is not None
         assert book.title == "Dune"
-        assert book.language == "en"
         assert len(book.editions) == 1
         assert book.editions[0].isbn == "9780441013593"
         assert book.editions[0].format == "ebook"

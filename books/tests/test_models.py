@@ -17,7 +17,6 @@ def book():
         title="Cien años de soledad",
         author="Gabriel García Márquez",
         cover_image="https://hardcover.app/covers/12345.jpg",
-        language="es",
         rating=4.5,
         source="hardcover",
     )
@@ -42,6 +41,7 @@ def edition(book):
         isbn="9788437604947",
         book=book,
         format="ebook",
+        language="es",
         publisher="Cátedra",
         published_date="2003-01-01",
         source="hardcover",
@@ -143,7 +143,6 @@ class TestBookCRUD:
             title="Cien años de soledad",
             author="Gabriel García Márquez",
             cover_image="https://hardcover.app/covers/12345.jpg",
-            language="es",
             rating=4.5,
             source="hardcover",
         )
@@ -153,7 +152,6 @@ class TestBookCRUD:
         assert book.title == "Cien años de soledad"
         assert book.author == "Gabriel García Márquez"
         assert book.cover_image == "https://hardcover.app/covers/12345.jpg"
-        assert book.language == "es"
         assert book.rating == 4.5
         assert book.source == "hardcover"
 
@@ -168,7 +166,6 @@ class TestBookCRUD:
         assert book.cache_ttl == Book.DEFAULT_CACHE_TTL
         assert book.author == ""
         assert book.cover_image == ""
-        assert book.language == ""
         assert book.rating is None
 
     def test_create_missing_required_fields_fails_validation(self):
@@ -191,7 +188,6 @@ class TestBookCRUD:
         book.title = "Cien años de soledad (edición revisada)"
         book.author = "G. García Márquez"
         book.cover_image = "https://hardcover.app/covers/99999.jpg"
-        book.language = "en"
         book.rating = 4.8
         book.source = "openlibrary"
         book.save()
@@ -201,7 +197,6 @@ class TestBookCRUD:
         assert book.title == "Cien años de soledad (edición revisada)"
         assert book.author == "G. García Márquez"
         assert book.cover_image == "https://hardcover.app/covers/99999.jpg"
-        assert book.language == "en"
         assert book.rating == 4.8
         assert book.source == "openlibrary"
 
@@ -400,7 +395,6 @@ class TestBookUpdateCache:
             title="Cien años de soledad",
             author="Gabriel García Márquez",
             cover_image="https://hardcover.app/covers/12345.jpg",
-            language="es",
             rating=4.5,
             source="hardcover",
         )
@@ -465,6 +459,7 @@ class TestEditionUpdateCache:
         dto = EditionDTO(
             isbn="9788437604947",
             format="ebook",
+            language="es",
             publisher="Cátedra",
             published_date="2003-01-01",
             source="hardcover",
@@ -475,6 +470,7 @@ class TestEditionUpdateCache:
         assert Edition.objects.count() == 1
         edition.refresh_from_db()
         assert edition.isbn == "9788437604947"
+        assert edition.language == "es"
         assert edition.book == book
         assert edition.format == "ebook"
         assert edition.publisher == "Cátedra"
@@ -483,6 +479,7 @@ class TestEditionUpdateCache:
     def test_updates_existing_edition_for_same_isbn_and_source(self, edition):
         dto = EditionDTO(
             isbn=edition.isbn,
+            language="en",
             format="pdf",
             publisher="Planeta",
             published_date="2010-01-01",
@@ -494,6 +491,7 @@ class TestEditionUpdateCache:
         assert Edition.objects.count() == 1
         assert updated.pk == edition.pk
         updated.refresh_from_db()
+        assert updated.language == "en"
         assert updated.format == "pdf"
         assert updated.publisher == "Planeta"
         assert updated.published_date == "2010-01-01"
@@ -501,7 +499,7 @@ class TestEditionUpdateCache:
     def test_refreshes_cached_at_for_existing_edition(self, edition):
         stale = timezone.now() - timezone.timedelta(hours=1)
         Edition.objects.filter(pk=edition.pk).update(cached_at=stale)
-        dto = EditionDTO(isbn=edition.isbn, source=edition.source)
+        dto = EditionDTO(isbn=edition.isbn, source=edition.source, language=edition.language)
 
         updated = Edition.update_cache(dto, edition.book)
 
@@ -509,7 +507,7 @@ class TestEditionUpdateCache:
         assert updated.cached_at > stale
 
     def test_does_not_collide_across_sources_for_same_isbn(self, edition):
-        dto = EditionDTO(isbn=edition.isbn, format="epub", source="openlibrary")
+        dto = EditionDTO(isbn=edition.isbn, format="epub", source="openlibrary", language="es")
 
         other_edition = Edition.update_cache(dto, edition.book)
 
