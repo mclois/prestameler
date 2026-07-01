@@ -21,6 +21,12 @@ A app é multiidioma en dous sentidos independentes:
 
 A app `availability` non se ve afectada: os libros identifícanse por ISBN, que é neutro ao idioma.
 
+**Tradución de contido dinámico (Hardcover)**: o i18n de Django (gettext) só cobre texto estático (chrome da UI: labels, botóns, erros). Non serve para xéneros/moods/nomes de colección que veñen da API de Hardcover, xa que gettext precisa que as strings existan no código fonte en tempo de extracción. Estratexia:
+- **Xéneros/moods**: vocabulario pechado e pequeno → tradúcense á man, unha vez, nunha táboa de tradución mantida coma datos estáticos.
+- **Nomes de Collection/listas**: texto libre non acoutado (case nomes propios) → quedan sen traducir, amósanse tal cal veñan da API, independentemente do idioma de interface. Descartouse un pipeline de tradución automática (MT) + caché por ser sobrecuste innecesario para este caso.
+- **Patrón elixido**: modelo `*Translation` separado por modelo traducible (`CollectionTranslation`, `FacetTranslation` — unha fila por `(obxecto, idioma)`), en troques de `django-modeltranslation` (columnas `name_es`/`name_gl`/... anchas na propia táboa). Motivo: cada fila de tradución garda un `source_name_snapshot` (valor do campo orixe no momento de traducir), o que permite que `is_stale` sexa unha property calculada (`snapshot != valor_actual_do_campo_orixe`) en vez dunha flag que haxa que lembrar actualizar en cada camiño de sync. Se a fonte cambia, a tradución existente non se borra — márcase coma obsoleta para que un editor a revise en vez de traducir de cero. `django-parler` xera esta mesma estrutura (táboa separada) automaticamente e é unha alternativa válida a avaliar se medra o número de modelos traducibles.
+- Non implementar ata que `BookManager` e `FilterManager` estean rematados; forma parte das features de CMS/admin (inline en Django admin sobre o modelo de tradución).
+
 ## Principios de implementación
 - Type hints en todo o código
 - DTOs explícitos con Pydantic para transferencia de datos entre capas
@@ -269,3 +275,4 @@ prestameler/
 - [x] **Recomendacións "tamén leron"**: LibraryThing `multirecommendations` gardado para fase futura.
 - [x] **Mixin de caché**: `CacheableModel` abstracto con `cached_at`, `cache_ttl`, `source`. Sen campo `cid` — en súa lugar, `CID_FIELD` (constante de clase) apunta ao campo semántico propio de cada subclase (ex. `isbn` en `Edition`, `external_id` en `Book` e `Collection`). `cid` property devolve ese valor. `get_cached(cid)` encapsula o lookup. `__init_subclass__` forza que toda subclase concreta declare `CID_FIELD`. PK: `id` enteiro automático de Django; unicidade de dominio vía `unique_together`. Sen `tags` (YAGNI).
 - [x] **Enriquecemento editorial**: módulo `editorial` (app Django independente) para datos curados manualmente que completan o que veñen dos repositorios externos (ex. portada dunha colección de Hardcover que non ten imaxe). Os modelos de `editorial` son permanentes (non herdan de `CacheableModel`, non expiran). O merge farase en `FilterManager` ao compoñer a resposta ao usuario. Non implementar ata que `books` e `filter` estean operativos.
+- [x] **Tradución de contido dinámico**: ver detalle en [Idiomas](#idiomas). Táboas `*Translation` separadas (non `django-modeltranslation`) con snapshot da fonte para invalidación calculada. Non implementar ata que `BookManager`/`FilterManager` estean rematados.
