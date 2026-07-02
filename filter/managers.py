@@ -51,24 +51,21 @@ class FilterManager:
     def _ordered_collections(facet: Facet):
         return facet.facet_collections.select_related("collection").order_by("order")
 
-    def _to_book_result(self, book: Book, fill_availability: bool= False) -> BookResultDTO:
+    def _to_book_result(self, book: Book, fill_availability: bool = False) -> BookResultDTO:
         editions: list[EditionDTO] = []
-        book_dto = BookResultDTO(book=self._book_to_dto(book, editions))
-        if fill_availability:
-            available_copies: list[CopyDTO] = []
-            seen: set[tuple[str, int | None]] = set()
-            for edition in book.editions.order_by("id"):
-                editions.append(self._edition_to_dto(edition))
-                copies = [c for c in self._availability.get_copies(edition.isbn) if c.available is True]
-                if not copies:
-                    continue
-                for copy in copies:
-                    key = (copy.isbn, copy.catalog_id)
-                    if key not in seen:
-                        seen.add(key)
-                        available_copies.append(self._copy_to_dto(copy))
-                book_dto.available_copies = available_copies
-        return book_dto
+        available_copies: list[CopyDTO] = []
+        seen: set[tuple[str, int | None]] = set()
+        for edition in book.editions.order_by("id"):
+            editions.append(self._edition_to_dto(edition))
+            if not fill_availability:
+                continue
+            copies = [c for c in self._availability.get_copies(edition.isbn) if c.available is True]
+            for copy in copies:
+                key = (copy.isbn, copy.catalog_id)
+                if key not in seen:
+                    seen.add(key)
+                    available_copies.append(self._copy_to_dto(copy))
+        return BookResultDTO(book=self._book_to_dto(book, editions), available_copies=available_copies)
 
     # -- pure passthrough translation, no crossing (carousels) --
 

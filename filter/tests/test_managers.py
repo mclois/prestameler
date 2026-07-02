@@ -277,7 +277,7 @@ class TestGetBookWithAvailability:
         assert len(result.available_copies) == 1
         assert result.available_copies[0].isbn == "9788437604947"
 
-    def test_edition_with_zero_available_copies_in_any_catalog_is_dropped(self):
+    def test_edition_with_zero_available_copies_in_any_catalog_is_kept_with_no_copies(self):
         book = _book()
         _edition(book, "9788437604947")
         fake_availability = FakeAvailabilityManager({})
@@ -286,10 +286,10 @@ class TestGetBookWithAvailability:
             fake_books=FakeBookManager(book=book), fake_availability=fake_availability
         ).get_book_with_availability("hc-1")
 
-        assert result.book.editions == []
+        assert [e.isbn for e in result.book.editions] == ["9788437604947"]
         assert result.available_copies == []
 
-    def test_edition_available_none_in_every_catalog_is_dropped(self):
+    def test_edition_available_none_in_every_catalog_is_kept_with_no_copies(self):
         book = _book()
         _edition(book, "9788437604947")
         catalog = _catalog()
@@ -300,10 +300,10 @@ class TestGetBookWithAvailability:
             fake_books=FakeBookManager(book=book), fake_availability=fake_availability
         ).get_book_with_availability("hc-1")
 
-        assert result.book.editions == []
+        assert [e.isbn for e in result.book.editions] == ["9788437604947"]
         assert result.available_copies == []
 
-    def test_edition_available_false_in_every_catalog_is_dropped(self):
+    def test_edition_available_false_in_every_catalog_is_kept_with_no_copies(self):
         book = _book()
         _edition(book, "9788437604947")
         catalog = _catalog()
@@ -314,10 +314,10 @@ class TestGetBookWithAvailability:
             fake_books=FakeBookManager(book=book), fake_availability=fake_availability
         ).get_book_with_availability("hc-1")
 
-        assert result.book.editions == []
+        assert [e.isbn for e in result.book.editions] == ["9788437604947"]
         assert result.available_copies == []
 
-    def test_book_with_one_available_and_one_fully_unavailable_edition_keeps_only_available(self):
+    def test_book_with_one_available_and_one_fully_unavailable_edition_keeps_both_editions(self):
         book = _book()
         _edition(book, "9788437604947")
         _edition(book, "9788437604954")
@@ -332,9 +332,10 @@ class TestGetBookWithAvailability:
             fake_books=FakeBookManager(book=book), fake_availability=fake_availability
         ).get_book_with_availability("hc-1")
 
-        assert [e.isbn for e in result.book.editions] == ["9788437604947"]
+        assert [e.isbn for e in result.book.editions] == ["9788437604947", "9788437604954"]
+        assert [c.isbn for c in result.available_copies] == ["9788437604947"]
 
-    def test_available_copies_from_dropped_editions_do_not_leak(self):
+    def test_available_copies_only_include_actually_available_editions(self):
         book = _book()
         _edition(book, "9788437604947")
         _edition(book, "9788437604954")
@@ -351,7 +352,7 @@ class TestGetBookWithAvailability:
 
         assert [c.isbn for c in result.available_copies] == ["9788437604947"]
 
-    def test_book_where_every_edition_is_unavailable_returns_dto_with_empty_editions_not_none(self):
+    def test_book_where_every_edition_is_unavailable_returns_dto_with_editions_kept(self):
         book = _book()
         _edition(book, "9788437604947")
         fake_availability = FakeAvailabilityManager({})
@@ -361,7 +362,7 @@ class TestGetBookWithAvailability:
         ).get_book_with_availability("hc-1")
 
         assert result is not None
-        assert result.book.editions == []
+        assert [e.isbn for e in result.book.editions] == ["9788437604947"]
         assert result.available_copies == []
 
     def test_duplicate_isbn_across_two_editions_does_not_duplicate_copy(self):
