@@ -226,6 +226,74 @@ for catalog in Catalog.objects.filter(is_active=True):
 
 ---
 
+## Frontend / Templates
+
+Frontend minimalista e responsive sobre Django templates renderizados no servidor.
+Principio reitor: complementar o server-rendering, non loitar contra el (nada de SPA).
+
+**Stack elixido**
+- **CSS — Pico.css (classless, punto de partida)**: escríbese HTML semántico
+  (`<nav>`, `<article>`, `<button>`) e obtense responsive + modo escuro case gratis,
+  sen ensuciar os templates con clases. Se ao medrar as páxinas de detalle
+  (`/books/<id>/`) se precisa control fino de layout, migrar a **Tailwind** é un
+  cambio só de clases nos templates, sen tocar a lóxica. Deixar como porta aberta.
+- **Interactividade — HTMX**: actualizacións parciais dende vistas que devolven
+  *fragmentos* de template (buscador, filtros, paxinación), sen API JSON nin SPA.
+  Encaixa co modelo de `filter/views.py`. Helper: paquete `django-htmx`
+  (`request.htmx` no middleware).
+- **Efectos JS locais — Alpine.js** (~15 KB, sen build step): pestañas, dropdowns,
+  toggles, acordeóns. Os atributos (`x-show`, `@click`) son *comportamento*, non
+  estilo → o CSS queda limpo e nun ficheiro aparte.
+  *(Ollo ao implementar: fragmentos inseridos por HTMX poden necesitar
+  `Alpine.initTree()` en `htmx:afterSwap` para que `x-data` se reinicialice.)*
+- **Formularios**: `django-widget-tweaks` (lixeiro, engadir clases aos widgets no
+  template) ou `django-crispy-forms` + pack correspondente. Decisión final ao
+  implementar os forms reais.
+
+**Descartados**
+- **Bootstrap**: o seu valor histórico (grid de 12 columnas + normalización de
+  navegadores) desapareceu con `flex`/`grid` nativos. Aporta compoñentes prefeitos
+  pero cun aspecto xenérico recoñecible e un bundle CSS+JS de máis para este MVP.
+- **Tailwind**: descartado por preferencia (proba previa negativa: sopa de clases no
+  marcado, difícil de ler). Mantido só como plan B de migración se Pico queda curto.
+
+**Carruseis da portada** (Featured, moods, xéneros)
+- Non son sliders tipo *hero* (un slide grande con autoplay) senón **estantes**
+  horizontais de tarxetas estilo streaming.
+- Patrón elixido: **CSS `scroll-snap` nativo** — táctil (swipe/trackpad), sen JS,
+  cero librarías:
+  ```css
+  .shelf {
+    display: flex; gap: 1rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+  }
+  .shelf > * { flex: 0 0 auto; scroll-snap-align: start; }
+  ```
+  ```html
+  <section class="shelf">
+    {% for col in featured %}{% include "books/_collection_card.html" %}{% endfor %}
+  </section>
+  ```
+- Frechas ‹ › opcionais: ~10 liñas de JS vanilla (`el.scrollBy({left: 320, behavior: 'smooth'})`)
+  ou o mesmo con Alpine.
+- **Só se** algún día se precisa un slider pesado real (autoplay, puntos, loop
+  infinito, *hero*): headless minúsculo tipo **Embla Carousel** (~6 KB) ou Splide.
+  Para estantes de libros, `scroll-snap` gaña en peso e simplicidade.
+
+**Reutilización de templates**
+- Partials repetidos (tarxeta de libro, tarxeta de colección) vía `{% include %}`.
+- Se se quere unha DX máis de compoñentes: `django-template-partials` ou
+  `django-cotton`. Opcional, deixar para máis adiante.
+
+**Pendente ao implementar**
+- [ ] Decidir `widget-tweaks` vs `crispy-forms` cando existan os forms reais
+- [ ] Definir o partial `_collection_card.html` e `_book_card.html`
+- [ ] Confirmar se abonda con `scroll-snap` ou fai falla Embla nalgún estante
+
+---
+
 ## Estrutura de carpetas
 ```
 prestameler/
@@ -267,8 +335,10 @@ prestameler/
 - [ ] Credenciais/autenticación para Hardcover API
 - [ ] Backend de caché (Redis vs BD)
 - [ ] Arquitectura concreta de `filter` (o Manager actual pode ser suficiente)
-- [ ] Framework CSS para os templates (Bootstrap, Tailwind, ningún?)
 - [ ] Deploy: servidor, containerización (Docker?)
+- [ ] Split de `filter` en apps separadas (`browser` para HTML público, `api` para DRF futuro,
+      `filter` queda só coma orquestración). Xurdiu ao pensar nas páxinas públicas; sen decidir,
+      retomar antes de empezar `browser`.
 
 ## Decisións adoptadas
 - [x] **APIs de libros**: Hardcover (principal) + Open Library (fallback ISBNs). Google Books descartada.
@@ -276,3 +346,4 @@ prestameler/
 - [x] **Mixin de caché**: `CacheableModel` abstracto con `cached_at`, `cache_ttl`, `source`. Sen campo `cid` — en súa lugar, `CID_FIELD` (constante de clase) apunta ao campo semántico propio de cada subclase (ex. `isbn` en `Edition`, `external_id` en `Book` e `Collection`). `cid` property devolve ese valor. `get_cached(cid)` encapsula o lookup. `__init_subclass__` forza que toda subclase concreta declare `CID_FIELD`. PK: `id` enteiro automático de Django; unicidade de dominio vía `unique_together`. Sen `tags` (YAGNI).
 - [x] **Enriquecemento editorial**: módulo `editorial` (app Django independente) para datos curados manualmente que completan o que veñen dos repositorios externos (ex. portada dunha colección de Hardcover que non ten imaxe). Os modelos de `editorial` son permanentes (non herdan de `CacheableModel`, non expiran). O merge farase en `FilterManager` ao compoñer a resposta ao usuario. Non implementar ata que `books` e `filter` estean operativos.
 - [x] **Tradución de contido dinámico**: ver detalle en [Idiomas](#idiomas). Táboas `*Translation` separadas (non `django-modeltranslation`) con snapshot da fonte para invalidación calculada. Non implementar ata que `BookManager`/`FilterManager` estean rematados.
+- [x] **Stack frontend**: ver detalle en [Frontend / Templates](#frontend--templates). Pico.css (classless) + HTMX + Alpine.js. Bootstrap e Tailwind descartados.
