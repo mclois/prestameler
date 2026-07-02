@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Buscar — Prestameler{% endblock %}
+
+{% block content %}
+  <form action="{% url 'filter:search' %}" method="get">
+    <input type="text" name="q" value="{{ query }}" placeholder="Título, autor...">
+    <button type="submit">Buscar</button>
+  </form>
+
+  {% if result %}
+    <h1>{{ result.title }}</h1>
+    <ul>
+      {% for item in result.books %}
+        <li>
+          <a href="{% url 'filter:book-detail' item.book.external_id %}">{{ item.book.title }}</a>
+          — {{ item.book.author }}
+          {% if item.available_copies %}
+            ({{ item.available_copies|length }} copia(s) disponible(s))
+          {% endif %}
+        </li>
+      {% empty %}
+        <li>Sin resultados.</li>
+      {% endfor %}
+    </ul>
+  {% elif query %}
+    <p>Sin resultados para "{{ query }}".</p>
+  {% endif %}
+{% endblock %}

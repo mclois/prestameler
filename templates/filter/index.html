@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Prestameler{% endblock %}
+
+{% block content %}
+  <h1>{{ collections.title }}</h1>
+
+  {% for collection in collections.collections %}
+    <section>
+      <h2><a href="{% url 'filter:collection-detail' collection.external_id %}">{{ collection.title }}</a></h2>
+      {% if collection.description %}<p>{{ collection.description }}</p>{% endif %}
+      <ul>
+        {% for book in collection.books %}
+          <li>
+            {% if book.cover_image %}<img src="{{ book.cover_image }}" alt="" width="60">{% endif %}
+            <a href="{% url 'filter:book-detail' book.external_id %}">{{ book.title }}</a> — {{ book.author }}
+          </li>
+        {% empty %}
+          <li>Sin libros.</li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% empty %}
+    <p>Sin colecciones.</p>
+  {% endfor %}
+{% endblock %}
