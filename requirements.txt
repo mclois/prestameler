@@ -13,7 +13,9 @@ certifi==2026.5.20
     #   httpcore
     #   httpx
 django==6.0.6
-    # via prestameler-v00
+    # via prestameler
+gunicorn==26.0.0
+    # via prestameler
 h11==0.16.0
     # via httpcore
 httpcore==1.0.9
@@ -24,6 +26,8 @@ idna==3.18
     # via
     #   anyio
     #   httpx
+packaging==26.2
+    # via gunicorn
 pydantic==2.13.4
     # via prestameler
 pydantic-core==2.46.4
