@@ -7,7 +7,7 @@ anyio==4.13.0
 asgiref==3.11.1
     # via django
 beautifulsoup4==4.14.3
-    # via prestameler-v00
+    # via prestameler
 certifi==2026.5.20
     # via
     #   httpcore
@@ -19,17 +19,17 @@ h11==0.16.0
 httpcore==1.0.9
     # via httpx
 httpx==0.28.1
-    # via prestameler-v00
+    # via prestameler
 idna==3.18
     # via
     #   anyio
     #   httpx
 pydantic==2.13.4
-    # via prestameler-v00
+    # via prestameler
 pydantic-core==2.46.4
     # via pydantic
 python-dotenv==1.2.2
-    # via prestameler-v00
+    # via prestameler
 soupsieve==2.8.4
     # via beautifulsoup4
 sqlparse==0.5.5
