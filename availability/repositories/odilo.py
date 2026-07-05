@@ -42,6 +42,9 @@ class OdiloRepository(AvailabilityRepositoryBase):
             timeout=_TIMEOUT,
         )
         response.raise_for_status()
+        if not response.content:
+            # Odilo returns 200 with an empty body (not `[]`) when there are no matches.
+            return []
         return [
             CopyDTO(
                 isbn=record["isbn"],

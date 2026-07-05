@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}{{ result.title|default:"Colección" }} — Prestameler{% endblock %}
+
+{% block content %}
+  {% if result %}
+    <h1>{{ result.title }}</h1>
+    {% if result.description %}<p>{{ result.description }}</p>{% endif %}
+    {% if result.selection_author %}<p>Selección de {{ result.selection_author }}</p>{% endif %}
+    <ul>
+      {% for item in result.books %}
+        <li>
+          <a href="{% url 'filter:book-detail' item.book.external_id %}">{{ item.book.title }}</a>
+          — {{ item.book.author }}
+        </li>
+      {% empty %}
+        <li>Sin libros.</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Colección no encontrada.</p>
+  {% endif %}
+{% endblock %}

@@ -74,6 +74,21 @@ class TestSearch:
 
         assert copies == []
 
+    def test_returns_empty_list_for_empty_body(self, monkeypatch, catalog):
+        """Odilo returns 200 with a zero-byte body (not `[]`) when there are no matches."""
+        monkeypatch.setattr(httpx, "post", lambda *a, **k: _token_response())
+
+        def fake_get(*args, **kwargs):
+            response = httpx.Response(200, content=b"")
+            response._request = httpx.Request("GET", _BASE_URL)
+            return response
+
+        monkeypatch.setattr(httpx, "get", fake_get)
+
+        copies = OdiloRepository(catalog).search(_ISBN)
+
+        assert copies == []
+
     def test_sends_bearer_token_from_token_endpoint(self, monkeypatch, catalog):
         monkeypatch.setattr(httpx, "post", lambda *a, **k: _token_response())
         captured_headers = {}

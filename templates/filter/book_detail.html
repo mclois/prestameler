@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}{{ result.book.title|default:"Libro" }} — Prestameler{% endblock %}
+
+{% block content %}
+  {% if result %}
+    <h1>{{ result.book.title }}</h1>
+    <p>{{ result.book.author }}</p>
+    {% if result.book.cover_image %}<img src="{{ result.book.cover_image }}" alt="" width="150">{% endif %}
+    {% if result.book.rating %}<p>Valoración: {{ result.book.rating }}</p>{% endif %}
+
+    <h2>Disponibilidad</h2>
+    {% if result.available_copies %}
+      <ul>
+        {% for copy in result.available_copies %}
+          <li>
+            {{ copy.source }} — ISBN {{ copy.isbn }}
+            {% if copy.borrow_url %}<a href="{{ copy.borrow_url }}">Ir a la biblioteca</a>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>No disponible actualmente en ninguna biblioteca.</p>
+    {% endif %}
+
+    <h2>Ediciones</h2>
+    <ul>
+      {% for edition in result.book.editions %}
+        <li>{{ edition.isbn }} ({{ edition.language }}, {{ edition.publisher }})</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Libro no encontrado.</p>
+  {% endif %}
+{% endblock %}
