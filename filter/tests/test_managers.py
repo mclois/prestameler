@@ -31,8 +31,27 @@ def _catalog(name="Catalog A") -> Catalog:
     )
 
 
-def _copy(isbn: str, catalog: Catalog, available: bool | None = True) -> Copy:
-    return Copy.objects.create(isbn=isbn, catalog=catalog, available=available, source=catalog.name)
+def _copy(
+    isbn: str,
+    catalog: Catalog,
+    available: bool | None = True,
+    title: str = "",
+    author: str = "",
+    language: str = "",
+    format: str = "",
+    cover_image: str = "",
+) -> Copy:
+    return Copy.objects.create(
+        isbn=isbn,
+        catalog=catalog,
+        available=available,
+        source=catalog.name,
+        title=title,
+        author=author,
+        language=language,
+        format=format,
+        cover_image=cover_image,
+    )
 
 
 class FakeBookManager:
@@ -265,7 +284,16 @@ class TestGetBookWithAvailability:
         book = _book()
         _edition(book, "9788437604947")
         catalog = _catalog()
-        copy = _copy("9788437604947", catalog, available=True)
+        copy = _copy(
+            "9788437604947",
+            catalog,
+            available=True,
+            title="El Quijote",
+            author="Miguel de Cervantes",
+            language="Español",
+            format="EPUB",
+            cover_image="https://example.com/covers/quijote-small.jpg",
+        )
         fake_availability = FakeAvailabilityManager({"9788437604947": [copy]})
 
         result = _manager(
@@ -276,6 +304,11 @@ class TestGetBookWithAvailability:
         assert result.book.editions[0].isbn == "9788437604947"
         assert len(result.available_copies) == 1
         assert result.available_copies[0].isbn == "9788437604947"
+        assert result.available_copies[0].title == "El Quijote"
+        assert result.available_copies[0].author == "Miguel de Cervantes"
+        assert result.available_copies[0].language == "Español"
+        assert result.available_copies[0].format == "EPUB"
+        assert result.available_copies[0].cover_image == "https://example.com/covers/quijote-small.jpg"
 
     def test_edition_with_zero_available_copies_in_any_catalog_is_kept_with_no_copies(self):
         book = _book()

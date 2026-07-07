@@ -11,14 +11,20 @@
 
     <h2>Disponibilidad</h2>
     {% if result.available_copies %}
-      <ul>
+      <div class="grid">
         {% for copy in result.available_copies %}
-          <li>
-            {{ copy.source }} — ISBN {{ copy.isbn }}
-            {% if copy.borrow_url %}<a href="{{ copy.borrow_url }}">Ir a la biblioteca</a>{% endif %}
-          </li>
+          <article>
+            <header>
+              {{ copy.source }}
+              {% if copy.borrow_url %}<a href="{{ copy.borrow_url }}" role="button">Ir a la biblioteca</a>{% endif %}
+            </header>
+            <p>{{ copy.title }}{% if copy.language %} ({{ copy.language }}){% endif %}</p>
+            {% if copy.cover_image %}<img src="{{ copy.cover_image }}" alt="" width="150">{% endif %}
+            {% if copy.author %}<p>{{ copy.author }}</p>{% endif %}
+            {% if copy.format %}<p>{{ copy.format }}</p>{% endif %}
+          </article>
         {% endfor %}
-      </ul>
+      </div>
     {% else %}
       <p>No disponible actualmente en ninguna biblioteca.</p>
     {% endif %}

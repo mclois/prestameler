@@ -130,4 +130,9 @@ class FilterManager:
             borrow_url=copy.borrow_url,
             catalog_id=copy.catalog_id,
             source=copy.source,
+            title=copy.title,
+            author=copy.author,
+            language=copy.language,
+            format=copy.format,
+            cover_image=copy.cover_image,
         )
