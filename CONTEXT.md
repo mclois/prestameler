@@ -163,8 +163,8 @@ Comproba se un ebook se pode emprestar nalgunha biblioteca de eBiblio.
   - `isbn`, FK → `Catalog`
   - `available` (bool ou null se non informado)
   - `borrow_url`
+  - `title`, `author`, `language`, `format`, `cover_image`: metadatos do exemplar tal e como aparecen na fonte (Odilo/scraping web), non normalizados contra `Book`/`Edition` — permiten detectar adaptacións, traducións e outras versións "raras" mal agrupadas por Hardcover (#30)
   - Caché: `cid` (ID do exemplar na API Odilo / URL canónica), `cached_at`, `cache_ttl`, `source`
-  - Nota: título, autor, portada... non se almacenan aquí; son responsabilidade de `Book`/`Edition`
 
 **Capas**
 - `repositories/base.py`: interface `AvailabilityRepositoryBase` (ABC)
