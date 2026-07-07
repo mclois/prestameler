@@ -119,6 +119,11 @@ class TestCopyCRUD:
             cache_ttl=1800,
             available=True,
             borrow_url="https://galicia.ebiblio.es/prestamo/123",
+            title="El Quijote",
+            author="Miguel de Cervantes",
+            language="Español",
+            format="EPUB",
+            cover_image="https://galicia.ebiblio.es/covers/123-small.jpg",
         )
 
         copy.refresh_from_db()
@@ -128,6 +133,11 @@ class TestCopyCRUD:
         assert copy.cache_ttl == 1800
         assert copy.available is True
         assert copy.borrow_url == "https://galicia.ebiblio.es/prestamo/123"
+        assert copy.title == "El Quijote"
+        assert copy.author == "Miguel de Cervantes"
+        assert copy.language == "Español"
+        assert copy.format == "EPUB"
+        assert copy.cover_image == "https://galicia.ebiblio.es/covers/123-small.jpg"
 
     def test_create_with_only_required_fields(self, catalog):
         copy = Copy.objects.create(isbn="9788491051234", catalog=catalog, source="odilo")
@@ -136,6 +146,11 @@ class TestCopyCRUD:
         assert copy.cache_ttl == Copy.DEFAULT_CACHE_TTL
         assert copy.available is None
         assert copy.borrow_url == ""
+        assert copy.title == ""
+        assert copy.author == ""
+        assert copy.language == ""
+        assert copy.format == ""
+        assert copy.cover_image == ""
 
     def test_create_missing_required_fields_fails_validation(self, catalog):
         copy = Copy(catalog=catalog, source="odilo", cache_ttl=3600)
@@ -165,6 +180,11 @@ class TestCopyCRUD:
         copy.cache_ttl = 7200
         copy.available = False
         copy.borrow_url = "https://extremadura.ebiblio.es/prestamo/456"
+        copy.title = "El Quijote (edición ilustrada)"
+        copy.author = "Miguel de Cervantes"
+        copy.language = "Español"
+        copy.format = "PDF"
+        copy.cover_image = "https://extremadura.ebiblio.es/covers/456-small.jpg"
         copy.save()
 
         copy.refresh_from_db()
@@ -174,6 +194,11 @@ class TestCopyCRUD:
         assert copy.cache_ttl == 7200
         assert copy.available is False
         assert copy.borrow_url == "https://extremadura.ebiblio.es/prestamo/456"
+        assert copy.title == "El Quijote (edición ilustrada)"
+        assert copy.author == "Miguel de Cervantes"
+        assert copy.language == "Español"
+        assert copy.format == "PDF"
+        assert copy.cover_image == "https://extremadura.ebiblio.es/covers/456-small.jpg"
 
     def test_update_missing_required_fields_fails_validation(self, copy):
         copy.isbn = ""
@@ -202,6 +227,11 @@ class TestCopyUpdateCache:
             available=True,
             borrow_url="https://galicia.ebiblio.es/prestamo/123",
             source="odilo",
+            title="El Quijote",
+            author="Miguel de Cervantes",
+            language="Español",
+            format="EPUB",
+            cover_image="https://galicia.ebiblio.es/covers/123-small.jpg",
         )
 
         copy = Copy.update_cache(dto)
@@ -213,6 +243,11 @@ class TestCopyUpdateCache:
         assert copy.available is True
         assert copy.borrow_url == "https://galicia.ebiblio.es/prestamo/123"
         assert copy.source == "odilo"
+        assert copy.title == "El Quijote"
+        assert copy.author == "Miguel de Cervantes"
+        assert copy.language == "Español"
+        assert copy.format == "EPUB"
+        assert copy.cover_image == "https://galicia.ebiblio.es/covers/123-small.jpg"
 
     def test_updates_existing_copy_for_same_isbn_and_catalog(self, copy):
         dto = CopyDTO(
@@ -221,6 +256,11 @@ class TestCopyUpdateCache:
             available=False,
             borrow_url="https://galicia.ebiblio.es/prestamo/999",
             source="web",
+            title="El Quijote (edición ilustrada)",
+            author="Miguel de Cervantes",
+            language="Català",
+            format="PDF",
+            cover_image="https://galicia.ebiblio.es/covers/999-small.jpg",
         )
 
         updated = Copy.update_cache(dto)
@@ -231,6 +271,11 @@ class TestCopyUpdateCache:
         assert updated.available is False
         assert updated.borrow_url == "https://galicia.ebiblio.es/prestamo/999"
         assert updated.source == "web"
+        assert updated.title == "El Quijote (edición ilustrada)"
+        assert updated.author == "Miguel de Cervantes"
+        assert updated.language == "Català"
+        assert updated.format == "PDF"
+        assert updated.cover_image == "https://galicia.ebiblio.es/covers/999-small.jpg"
 
     def test_refreshes_cached_at_for_existing_copy(self, copy):
         stale = timezone.now() - timezone.timedelta(hours=1)
