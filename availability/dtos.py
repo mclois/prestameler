@@ -9,3 +9,8 @@ class CopyDTO(BaseModel):
     borrow_url: str | None = None
     catalog_id: int | None = None
     source: str | None = None
+    title: str | None = None
+    author: str | None = None
+    language: str | None = None
+    format: str | None = None
+    cover_image: str | None = None

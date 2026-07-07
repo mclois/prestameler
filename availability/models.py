@@ -30,6 +30,11 @@ class Copy(CacheableModel):
     catalog = models.ForeignKey(Catalog, on_delete=models.CASCADE, related_name="copies")
     available = models.BooleanField(null=True)
     borrow_url = models.URLField(blank=True)
+    title = models.CharField(max_length=255, blank=True, default="")
+    author = models.CharField(max_length=255, blank=True, default="")
+    language = models.CharField(max_length=255, blank=True, default="")
+    format = models.CharField(max_length=255, blank=True, default="")
+    cover_image = models.URLField(blank=True, default="")
 
     class Meta:
         verbose_name_plural = "copies"
@@ -47,6 +52,11 @@ class Copy(CacheableModel):
                 "available": dto.available,
                 "borrow_url": dto.borrow_url or "",
                 "source": dto.source,
+                "title": dto.title or "",
+                "author": dto.author or "",
+                "language": dto.language or "",
+                "format": dto.format or "",
+                "cover_image": dto.cover_image or "",
             },
         )
         return copy

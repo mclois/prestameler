@@ -28,6 +28,8 @@ idna==3.18
     #   httpx
 packaging==26.2
     # via gunicorn
+pycountry==26.2.16
+    # via prestameler
 pydantic==2.13.4
     # via prestameler
 pydantic-core==2.46.4
