@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
-from availability.repositories.odilo import OdiloRepository
+from availability.repositories.odilo import OdiloRepository, _language_name
 
 _BASE_URL = "https://biblioteca.ebiblio.cat"
 _ISBN = "9788429782738"
@@ -28,11 +28,27 @@ def catalog():
     )
 
 
-def _record(isbn: str, available: bool = True, record_id: str = "00757769") -> dict:
+def _record(
+    isbn: str,
+    available: bool = True,
+    record_id: str = "00757769",
+    title: str = "El Quijote",
+    author: str = "Miguel de Cervantes",
+    formats: list[str] | None = None,
+    language: str = "spa",
+    covers_url: dict | None = None,
+) -> dict:
     return {
         "id": record_id,
         "isbn": isbn,
         "availability": {"availableToCheckout": available},
+        "title": title,
+        "author": author,
+        "formats": formats if formats is not None else ["EPUB"],
+        "language": language,
+        "coversUrl": (
+            covers_url if covers_url is not None else {"small": "https://covers.example.com/small.jpg"}
+        ),
     }
 
 
@@ -57,6 +73,39 @@ class TestSearch:
         assert copies[0].isbn == _ISBN
         assert copies[0].available is False
         assert copies[0].borrow_url == f"{_BASE_URL}/info/00757769"
+        assert copies[0].title == "El Quijote"
+        assert copies[0].author == "Miguel de Cervantes"
+        assert copies[0].format == "EPUB"
+        assert copies[0].language == "Spanish"
+        assert copies[0].cover_image == "https://covers.example.com/small.jpg"
+
+    def test_cover_image_missing_when_covers_url_absent(self, monkeypatch, catalog):
+        monkeypatch.setattr(httpx, "post", lambda *a, **k: _token_response())
+        monkeypatch.setattr(
+            httpx, "get", lambda *a, **k: _response([_record(_ISBN, covers_url={})])
+        )
+
+        copies = OdiloRepository(catalog).search(_ISBN)
+
+        assert copies[0].cover_image is None
+
+    def test_joins_multiple_formats_into_comma_separated_string(self, monkeypatch, catalog):
+        monkeypatch.setattr(httpx, "post", lambda *a, **k: _token_response())
+        monkeypatch.setattr(
+            httpx, "get", lambda *a, **k: _response([_record(_ISBN, formats=["EPUB", "PDF"])])
+        )
+
+        copies = OdiloRepository(catalog).search(_ISBN)
+
+        assert copies[0].format == "EPUB, PDF"
+
+    def test_falls_back_to_raw_code_for_unrecognized_language(self, monkeypatch, catalog):
+        monkeypatch.setattr(httpx, "post", lambda *a, **k: _token_response())
+        monkeypatch.setattr(httpx, "get", lambda *a, **k: _response([_record(_ISBN, language="xxx")]))
+
+        copies = OdiloRepository(catalog).search(_ISBN)
+
+        assert copies[0].language == "xxx"
 
     def test_filters_non_matching_isbn(self, monkeypatch, catalog):
         monkeypatch.setattr(httpx, "post", lambda *a, **k: _token_response())
@@ -102,6 +151,17 @@ class TestSearch:
         OdiloRepository(catalog).search(_ISBN)
 
         assert captured_headers["Authorization"] == "Bearer abc123"
+
+
+class TestLanguageName:
+    def test_returns_full_name_for_known_code(self):
+        assert _language_name("spa") == "Spanish"
+
+    def test_returns_empty_string_for_empty_code(self):
+        assert _language_name("") == ""
+
+    def test_falls_back_to_raw_code_for_unknown_code(self):
+        assert _language_name("zzz") == "zzz"
 
 
 class TestTokenCache:

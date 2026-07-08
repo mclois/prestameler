@@ -42,7 +42,7 @@ app/
 
 **Apps:**
 - `books` — fetches and caches book metadata (Hardcover GraphQL API primary, OpenLibrary fallback)
-- `availability` — checks ebook borrow availability across eBiblio catalogs; uses a `CompositeRepository` that fans out to per-backend repos based on `Catalog.backend` (`odilo` | `web`). `Copy` stores only availability data (`isbn`, `borrow_url`, `available`) — no title/author/cover, those live in `Book`/`Edition`
+- `availability` — checks ebook borrow availability across eBiblio catalogs; `AvailabilityManager` dispatches per-catalog to the right backend repo based on `Catalog.backend` (`odilo` | `web`) via an internal `_REGISTRY` (no separate `CompositeRepository`). `Copy` stores availability data (`isbn`, `borrow_url`, `available`) plus `title`/`author`/`language`/`format`/`cover_image`, scraped/read alongside availability as a diagnostic denormalization — Hardcover's edition grouping in `Book`/`Edition` is inconsistent, so these fields help spot adaptations, translations, and other mismatched editions (see #30)
 - `filter` — orchestrates `BookManager` + `AvailabilityManager`; owns Django views and URL routing
 
 **Key invariant:** Repositories are the only layer that talks to external APIs. Managers never call external APIs directly — they check the local DB cache first and only delegate to a repository on a cache miss or TTL expiry.

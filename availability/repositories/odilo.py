@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, ClassVar
 
 import httpx
+import pycountry
 
 from availability.dtos import CopyDTO
 from availability.repositories.base import AvailabilityRepositoryBase
@@ -13,6 +14,18 @@ if TYPE_CHECKING:
 
 _TIMEOUT = 10
 _TOKEN_EXPIRY_MARGIN = timedelta(seconds=30)
+
+
+def _language_name(code: str) -> str:
+    """Return the display name for a 3-letter ISO 639-2/B language code.
+
+    Falls back to the raw code when pycountry doesn't recognize it, rather
+    than raising -- Odilo's data occasionally contains codes pycountry lacks.
+    """
+    if not code:
+        return code
+    language = pycountry.languages.get(alpha_3=code)
+    return language.name if language is not None else code
 
 
 class OdiloRepository(AvailabilityRepositoryBase):
@@ -50,6 +63,11 @@ class OdiloRepository(AvailabilityRepositoryBase):
                 isbn=record["isbn"],
                 available=(record.get("availability") or {}).get("availableToCheckout"),
                 borrow_url=f"{self._base_url}/info/{record['id']}",
+                title=record.get("title"),
+                author=record.get("author"),
+                format=", ".join(record.get("formats") or []),
+                language=_language_name(record.get("language", "")),
+                cover_image=(record.get("coversUrl") or {}).get("small"),
             )
             for record in response.json()
             if record.get("isbn") == isbn
