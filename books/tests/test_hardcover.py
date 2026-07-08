@@ -166,9 +166,9 @@ class TestSearchByQuery:
         HardcoverRepository().search(BookFilterDTO(search_query="dune"))
 
         title_branch, edition_title_branch, author_branch = captured["variables"]["where"]["_or"]
-        assert "language" not in title_branch["editions"]
+        assert "editions" not in title_branch
         assert "language" not in edition_title_branch["editions"]
-        assert "language" not in author_branch["editions"]
+        assert "editions" not in author_branch
 
     def test_matches_book_canonical_title(self, monkeypatch):
         captured: dict = {}
@@ -198,7 +198,7 @@ class TestSearchByQuery:
         edition_title_branch = captured["variables"]["where"]["_or"][1]["editions"]
         assert edition_title_branch["title"] == {"_ilike": "%autoestopista%"}
         assert edition_title_branch["language"] == {"code2": {"_in": ["es"]}}
-        assert edition_title_branch["reading_format"] == {"format": {"_eq": "Ebook"}}
+        assert "reading_format" not in edition_title_branch
 
     def test_matches_author_regardless_of_edition_title(self, monkeypatch):
         captured: dict = {}
@@ -213,7 +213,7 @@ class TestSearchByQuery:
 
         author_branch = captured["variables"]["where"]["_or"][2]
         assert author_branch["contributions"]["author"]["name"] == {"_ilike": "%herbert%"}
-        assert "title" not in author_branch["editions"]
+        assert "editions" not in author_branch
 
 
 class TestSearchByCollection:

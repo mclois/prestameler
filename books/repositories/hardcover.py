@@ -22,9 +22,7 @@ query SearchBooks($where: books_bool_exp!, $limit: Int!, $offset: Int!) {
     contributions { author { name } }
     image { url }
     rating
-    editions(
-      where: { reading_format: { format: { _eq: "Ebook" } } }
-    ) {
+    editions {
       isbn_10
       isbn_13
       language { code2 }
@@ -38,21 +36,13 @@ query SearchBooks($where: books_bool_exp!, $limit: Int!, $offset: Int!) {
 
 _GET_BOOK_QUERY = """
 query GetBook($id: Int!) {
-  books(
-    where: {
-      id: { _eq: $id }
-      editions: { reading_format: { format: { _eq: "Ebook" } } }
-    }
-    limit: 1
-  ) {
+  books(where: { id: { _eq: $id } }, limit: 1) {
     id
     title
     contributions { author { name } }
     image { url }
     rating
-    editions(
-      where: { reading_format: { format: { _eq: "Ebook" } } }
-    ) {
+    editions {
       isbn_10
       isbn_13
       language { code2 }
@@ -66,23 +56,13 @@ query GetBook($id: Int!) {
 
 _GET_COLLECTION_QUERY = """
 query GetList($id: Int!) {
-  lists(
-    where: {
-      id: {_eq: $id}
-      list_books: { book: { editions: { reading_format: { format: { _eq: "Ebook" } } } } }
-    },
-    limit: 1
-  ) {
+  lists(where: { id: {_eq: $id} }, limit: 1) {
     id
     name
     description
     books_count
     user { username }
-    list_books(
-      limit: 100,
-      order_by: {position: asc},
-      where: { book: { editions: { reading_format: { format: { _eq: "Ebook" } } } } }
-    ) {
+    list_books(limit: 100, order_by: {position: asc}) {
       book {
         id
         title
@@ -97,23 +77,13 @@ query GetList($id: Int!) {
 
 _GET_FEATURED_COLLECTIONS_QUERY = """
 query GetFeaturedLists {
-  lists(
-    limit: 20,
-    where: {
-      featured: {_eq: true}
-      list_books: { book: { editions : { reading_format: { format: { _eq: "Ebook" } } } } }
-    }
-  ) {
+  lists(limit: 20, where: { featured: {_eq: true} }) {
     id
     name
     description
     books_count
     user { username }
-    list_books(
-      limit: 50,
-      order_by: { position: asc }
-      where: { book: { editions: { reading_format: { format: { _eq: "Ebook" } } } } }
-    ) {
+    list_books(limit: 50, order_by: { position: asc }) {
       book {
         id
         title
@@ -129,23 +99,14 @@ query GetFeaturedLists {
 _GET_TAGS_QUERY = """
 query GetTagsByCategory($category: String!, $limit: Int!) {
   tags(
-    where: {
-      tag_category: {category: {_eq: $category}}
-      taggings: { book: { editions: { reading_format: { format: { _eq: "Ebook" } } } } }
-    },
+    where: { tag_category: {category: {_eq: $category}} },
     limit: $limit,
     order_by: {count: desc}
   ) {
     id
     tag
     count
-    taggings(
-      limit: 50,
-      where: {
-        taggable_type: { _eq: "Book" }
-        book: { editions: { reading_format: { format: { _eq: "Ebook" } } } }
-      }
-    ) {
+    taggings(limit: 50, where: { taggable_type: { _eq: "Book" } }) {
       book {
         id
         title
@@ -160,23 +121,11 @@ query GetTagsByCategory($category: String!, $limit: Int!) {
 
 _GET_TAG_QUERY = """
 query GetTag($id: bigint!) {
-  tags(
-    where: {
-      id: {_eq: $id}
-      taggings: { book: { editions: { reading_format: { format: { _eq: "Ebook" } } } } }
-    },
-    limit: 1
-  ) {
+  tags(where: { id: {_eq: $id} }, limit: 1) {
     id
     tag
     count
-    taggings(
-      limit: 50,
-      where: {
-        taggable_type: { _eq: "Book" }
-        book: { editions: { reading_format: { format: { _eq: "Ebook" } } } }
-      }
-    ) {
+    taggings(limit: 50, where: { taggable_type: { _eq: "Book" } }) {
       book {
         id
         title
@@ -297,21 +246,19 @@ class HardcoverRepository(BookRepositoryBase):
 
     def _search_by_query(self, filter_config: BookFilterDTO) -> CollectionDTO:
         query = (filter_config.search_query or "").strip()
-        editions_filter = {"reading_format": {"format": {"_eq": "Ebook"}}}
-        if filter_config.languages:
-            editions_filter["language"] = {"code2": {"_in": filter_config.languages}}
-        where = {
-            "_or": [
-                {"title": {"_ilike": f"%{query}%"}, "editions": editions_filter},
-                # title and language must match the same edition row (a translation's own
-                # title), not the book's canonical grouping title
-                {"editions": {**editions_filter, "title": {"_ilike": f"%{query}%"}}},
-                {
-                    "contributions": {"author": {"name": {"_ilike": f"%{query}%"}}},
-                    "editions": editions_filter,
-                },
-            ],
-        }
+        # Hardcover exposes edition format as both Edition.edition_format and
+        # Edition.reading_format.format, with no way to tell which (if either) is kept
+        # up-to-date by the community — real availability is checked per-ISBN later
+        # regardless, so search doesn't filter on either field.
+        language_filter = {"language": {"code2": {"_in": filter_config.languages}}} if filter_config.languages else None
+        title_match = {"title": {"_ilike": f"%{query}%"}}
+        if language_filter:
+            title_match["editions"] = language_filter
+        author_match = {"contributions": {"author": {"name": {"_ilike": f"%{query}%"}}}}
+        if language_filter:
+            author_match["editions"] = language_filter
+        edition_title_match = {"editions": {**(language_filter or {}), "title": {"_ilike": f"%{query}%"}}}
+        where = {"_or": [title_match, edition_title_match, author_match]}
         data = self._gql(_SEARCH_BOOKS_QUERY, {"where": where, "limit": 20, "offset": 0})
         books = [self._book_dto(node) for node in data["books"]]
         return CollectionDTO(
