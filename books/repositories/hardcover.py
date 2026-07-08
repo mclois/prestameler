@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import httpx
 from django.conf import settings
-from django.templatetags.i18n import language
 
 from books.dtos import BookDTO, BookFilterDTO, CollectionDTO, CollectionFilterDTO, EditionDTO, FacetDTO
 from books.repositories.base import BookRepositoryBase
@@ -10,34 +9,43 @@ from books.repositories.base import BookRepositoryBase
 _ENDPOINT = "https://api.hardcover.app/v1/graphql"
 _TIMEOUT = 10
 
-_SEARCH_QUERY = """
-query SearchBooks($query: String!) {
-  search(query: $query, query_type: "Book", per_page: 20) {
-    results
-  }
-}
-"""
-
-_GET_BOOK_QUERY = """
-query GetBook($id: Int!) {
+_SEARCH_BOOKS_QUERY = """
+query SearchBooks($where: books_bool_exp!, $limit: Int!, $offset: Int!) {
   books(
-    where: {
-      id: { _eq: $id }
-      editions: { reading_format: { format: { _eq: "Ebook" } } }
-    }
-    limit: 1
+    where: $where
+    limit: $limit
+    offset: $offset
+    order_by: { users_count: desc }
   ) {
     id
     title
     contributions { author { name } }
     image { url }
     rating
-    editions(
-      where: { reading_format: { format: { _eq: "Ebook" } } }
-    ) {
+    editions {
       isbn_10
       isbn_13
-      language { code2 } 
+      language { code2 }
+      reading_format { format }
+      publisher { name }
+      release_date
+    }
+  }
+}
+"""
+
+_GET_BOOK_QUERY = """
+query GetBook($id: Int!) {
+  books(where: { id: { _eq: $id } }, limit: 1) {
+    id
+    title
+    contributions { author { name } }
+    image { url }
+    rating
+    editions {
+      isbn_10
+      isbn_13
+      language { code2 }
       reading_format { format }
       publisher { name }
       release_date
@@ -48,23 +56,13 @@ query GetBook($id: Int!) {
 
 _GET_COLLECTION_QUERY = """
 query GetList($id: Int!) {
-  lists(
-    where: {
-      id: {_eq: $id}
-      list_books: { book: { editions: { reading_format: { format: { _eq: "Ebook" } } } } }
-    },
-    limit: 1
-  ) {
+  lists(where: { id: {_eq: $id} }, limit: 1) {
     id
     name
     description
     books_count
     user { username }
-    list_books(
-      limit: 100,
-      order_by: {position: asc},
-      where: { book: { editions: { reading_format: { format: { _eq: "Ebook" } } } } }
-    ) {
+    list_books(limit: 100, order_by: {position: asc}) {
       book {
         id
         title
@@ -79,23 +77,13 @@ query GetList($id: Int!) {
 
 _GET_FEATURED_COLLECTIONS_QUERY = """
 query GetFeaturedLists {
-  lists(
-    limit: 20,
-    where: {
-      featured: {_eq: true}
-      list_books: { book: { editions : { reading_format: { format: { _eq: "Ebook" } } } } }
-    }
-  ) {
+  lists(limit: 20, where: { featured: {_eq: true} }) {
     id
     name
     description
     books_count
     user { username }
-    list_books(
-      limit: 50,
-      order_by: { position: asc }
-      where: { book: { editions: { reading_format: { format: { _eq: "Ebook" } } } } }
-    ) {
+    list_books(limit: 50, order_by: { position: asc }) {
       book {
         id
         title
@@ -111,23 +99,14 @@ query GetFeaturedLists {
 _GET_TAGS_QUERY = """
 query GetTagsByCategory($category: String!, $limit: Int!) {
   tags(
-    where: {
-      tag_category: {category: {_eq: $category}}
-      taggings: { book: { editions: { reading_format: { format: { _eq: "Ebook" } } } } }
-    },
+    where: { tag_category: {category: {_eq: $category}} },
     limit: $limit,
     order_by: {count: desc}
   ) {
     id
     tag
     count
-    taggings(
-      limit: 50,
-      where: {
-        taggable_type: { _eq: "Book" }
-        book: { editions: { reading_format: { format: { _eq: "Ebook" } } } }
-      }
-    ) {
+    taggings(limit: 50, where: { taggable_type: { _eq: "Book" } }) {
       book {
         id
         title
@@ -142,23 +121,11 @@ query GetTagsByCategory($category: String!, $limit: Int!) {
 
 _GET_TAG_QUERY = """
 query GetTag($id: bigint!) {
-  tags(
-    where: {
-      id: {_eq: $id}
-      taggings: { book: { editions: { reading_format: { format: { _eq: "Ebook" } } } } }
-    },
-    limit: 1
-  ) {
+  tags(where: { id: {_eq: $id} }, limit: 1) {
     id
     tag
     count
-    taggings(
-      limit: 50,
-      where: {
-        taggable_type: { _eq: "Book" }
-        book: { editions: { reading_format: { format: { _eq: "Ebook" } } } }
-      }
-    ) {
+    taggings(limit: 50, where: { taggable_type: { _eq: "Book" } }) {
       book {
         id
         title
@@ -279,9 +246,21 @@ class HardcoverRepository(BookRepositoryBase):
 
     def _search_by_query(self, filter_config: BookFilterDTO) -> CollectionDTO:
         query = (filter_config.search_query or "").strip()
-        data = self._gql(_SEARCH_QUERY, {"query": query})
-        hits = (data["search"]["results"] or {}).get("hits") or []
-        books = [self._book_dto(hit["document"]) for hit in hits]
+        # Hardcover exposes edition format as both Edition.edition_format and
+        # Edition.reading_format.format, with no way to tell which (if either) is kept
+        # up-to-date by the community — real availability is checked per-ISBN later
+        # regardless, so search doesn't filter on either field.
+        language_filter = {"language": {"code2": {"_in": filter_config.languages}}} if filter_config.languages else None
+        title_match = {"title": {"_ilike": f"%{query}%"}}
+        if language_filter:
+            title_match["editions"] = language_filter
+        author_match = {"contributions": {"author": {"name": {"_ilike": f"%{query}%"}}}}
+        if language_filter:
+            author_match["editions"] = language_filter
+        edition_title_match = {"editions": {**(language_filter or {}), "title": {"_ilike": f"%{query}%"}}}
+        where = {"_or": [title_match, edition_title_match, author_match]}
+        data = self._gql(_SEARCH_BOOKS_QUERY, {"where": where, "limit": 20, "offset": 0})
+        books = [self._book_dto(node) for node in data["books"]]
         return CollectionDTO(
             external_id=f"search:{query.lower()}",
             source=self.SOURCE,
@@ -289,7 +268,7 @@ class HardcoverRepository(BookRepositoryBase):
             description=f'Books matching "{query}"',
             cover_image="",
             book_count=len(books),
-            filter_config=BookFilterDTO(search_query=query),
+            filter_config=BookFilterDTO(search_query=query, languages=filter_config.languages),
             books=books,
         )
 
