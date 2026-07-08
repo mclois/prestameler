@@ -26,13 +26,17 @@ class BookFilterDTO(BaseModel):
     collection_id: str | None = None
     search_query: str | None = None
     tag_id: int | None = None
+    languages: list[str] | None = None
 
     @property
     def cache_key(self) -> str:
         if self.collection_id:
             return self.collection_id
         if self.search_query:
-            return f"search:{self.search_query.strip().lower()}"
+            key = f"search:{self.search_query.strip().lower()}"
+            if self.languages:
+                key += f":lang:{','.join(sorted(self.languages))}"
+            return key
         if self.tag_id:
             return f"tag:{self.tag_id}"
         return ""

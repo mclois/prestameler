@@ -77,12 +77,10 @@ def _list_node(
 
 
 class TestSearchByQuery:
-    def test_returns_collection_with_books_from_hits(self, monkeypatch):
+    def test_returns_collection_with_matching_books(self, monkeypatch):
         monkeypatch.setattr(
             httpx, "post",
-            lambda *a, **k: _gql_response(
-                {"search": {"results": {"hits": [{"document": _book_node()}]}}}
-            ),
+            lambda *a, **k: _gql_response({"books": [_book_node()]}),
         )
 
         col = HardcoverRepository().search(BookFilterDTO(search_query="dune"))
@@ -94,22 +92,20 @@ class TestSearchByQuery:
         assert col.books[0].title == "Dune"
         assert col.books[0].author == "Frank Herbert"
 
-    def test_book_count_reflects_number_of_hits(self, monkeypatch):
+    def test_book_count_reflects_number_of_books(self, monkeypatch):
         monkeypatch.setattr(
             httpx, "post",
-            lambda *a, **k: _gql_response(
-                {"search": {"results": {"hits": [{"document": _book_node()}]}}}
-            ),
+            lambda *a, **k: _gql_response({"books": [_book_node()]}),
         )
 
         col = HardcoverRepository().search(BookFilterDTO(search_query="dune"))
 
         assert col.book_count == 1
 
-    def test_returns_empty_collection_when_no_hits(self, monkeypatch):
+    def test_returns_empty_collection_when_no_books(self, monkeypatch):
         monkeypatch.setattr(
             httpx, "post",
-            lambda *a, **k: _gql_response({"search": {"results": {"hits": []}}}),
+            lambda *a, **k: _gql_response({"books": []}),
         )
 
         col = HardcoverRepository().search(BookFilterDTO(search_query="xyzzy"))
@@ -120,7 +116,7 @@ class TestSearchByQuery:
     def test_normalizes_query_for_external_id(self, monkeypatch):
         monkeypatch.setattr(
             httpx, "post",
-            lambda *a, **k: _gql_response({"search": {"results": {"hits": []}}}),
+            lambda *a, **k: _gql_response({"books": []}),
         )
 
         col = HardcoverRepository().search(BookFilterDTO(search_query="  Dune  "))
@@ -133,13 +129,91 @@ class TestSearchByQuery:
 
         def fake_post(*args, headers=None, **kwargs):
             captured["headers"] = headers
-            return _gql_response({"search": {"results": {}}})
+            return _gql_response({"books": []})
 
         monkeypatch.setattr(httpx, "post", fake_post)
 
         HardcoverRepository().search(BookFilterDTO(search_query="dune"))
 
         assert captured["headers"]["Authorization"] == "Bearer test-token"
+
+    def test_filters_by_languages_when_given(self, monkeypatch):
+        captured: dict = {}
+
+        def fake_post(*args, json=None, **kwargs):
+            captured["variables"] = json["variables"]
+            return _gql_response({"books": []})
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        HardcoverRepository().search(BookFilterDTO(search_query="dune", languages=["es", "ca"]))
+
+        title_branch, edition_title_branch, author_branch = captured["variables"]["where"]["_or"]
+        expected = {"code2": {"_in": ["es", "ca"]}}
+        assert title_branch["editions"]["language"] == expected
+        assert edition_title_branch["editions"]["language"] == expected
+        assert author_branch["editions"]["language"] == expected
+
+    def test_omits_language_filter_when_not_given(self, monkeypatch):
+        captured: dict = {}
+
+        def fake_post(*args, json=None, **kwargs):
+            captured["variables"] = json["variables"]
+            return _gql_response({"books": []})
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        HardcoverRepository().search(BookFilterDTO(search_query="dune"))
+
+        title_branch, edition_title_branch, author_branch = captured["variables"]["where"]["_or"]
+        assert "language" not in title_branch["editions"]
+        assert "language" not in edition_title_branch["editions"]
+        assert "language" not in author_branch["editions"]
+
+    def test_matches_book_canonical_title(self, monkeypatch):
+        captured: dict = {}
+
+        def fake_post(*args, json=None, **kwargs):
+            captured["variables"] = json["variables"]
+            return _gql_response({"books": []})
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        HardcoverRepository().search(BookFilterDTO(search_query="hidalgo"))
+
+        title_branch = captured["variables"]["where"]["_or"][0]
+        assert title_branch["title"] == {"_ilike": "%hidalgo%"}
+
+    def test_matches_title_and_language_on_the_same_edition(self, monkeypatch):
+        captured: dict = {}
+
+        def fake_post(*args, json=None, **kwargs):
+            captured["variables"] = json["variables"]
+            return _gql_response({"books": []})
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        HardcoverRepository().search(BookFilterDTO(search_query="autoestopista", languages=["es"]))
+
+        edition_title_branch = captured["variables"]["where"]["_or"][1]["editions"]
+        assert edition_title_branch["title"] == {"_ilike": "%autoestopista%"}
+        assert edition_title_branch["language"] == {"code2": {"_in": ["es"]}}
+        assert edition_title_branch["reading_format"] == {"format": {"_eq": "Ebook"}}
+
+    def test_matches_author_regardless_of_edition_title(self, monkeypatch):
+        captured: dict = {}
+
+        def fake_post(*args, json=None, **kwargs):
+            captured["variables"] = json["variables"]
+            return _gql_response({"books": []})
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        HardcoverRepository().search(BookFilterDTO(search_query="herbert"))
+
+        author_branch = captured["variables"]["where"]["_or"][2]
+        assert author_branch["contributions"]["author"]["name"] == {"_ilike": "%herbert%"}
+        assert "title" not in author_branch["editions"]
 
 
 class TestSearchByCollection:

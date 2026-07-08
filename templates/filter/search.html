@@ -5,6 +5,15 @@
 {% block content %}
   <form action="{% url 'filter:search' %}" method="get">
     <input type="text" name="q" value="{{ query }}" placeholder="Título, autor...">
+    <fieldset>
+      <legend>Idioma</legend>
+      {% for code, label in language_choices %}
+        <label>
+          <input type="checkbox" name="language" value="{{ code }}" {% if code in selected_languages %}checked{% endif %}>
+          {{ label }}
+        </label>
+      {% endfor %}
+    </fieldset>
     <button type="submit">Buscar</button>
   </form>
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import httpx
 from django.conf import settings
-from django.templatetags.i18n import language
 
 from books.dtos import BookDTO, BookFilterDTO, CollectionDTO, CollectionFilterDTO, EditionDTO, FacetDTO
 from books.repositories.base import BookRepositoryBase
@@ -10,10 +9,29 @@ from books.repositories.base import BookRepositoryBase
 _ENDPOINT = "https://api.hardcover.app/v1/graphql"
 _TIMEOUT = 10
 
-_SEARCH_QUERY = """
-query SearchBooks($query: String!) {
-  search(query: $query, query_type: "Book", per_page: 20) {
-    results
+_SEARCH_BOOKS_QUERY = """
+query SearchBooks($where: books_bool_exp!, $limit: Int!, $offset: Int!) {
+  books(
+    where: $where
+    limit: $limit
+    offset: $offset
+    order_by: { users_count: desc }
+  ) {
+    id
+    title
+    contributions { author { name } }
+    image { url }
+    rating
+    editions(
+      where: { reading_format: { format: { _eq: "Ebook" } } }
+    ) {
+      isbn_10
+      isbn_13
+      language { code2 }
+      reading_format { format }
+      publisher { name }
+      release_date
+    }
   }
 }
 """
@@ -37,7 +55,7 @@ query GetBook($id: Int!) {
     ) {
       isbn_10
       isbn_13
-      language { code2 } 
+      language { code2 }
       reading_format { format }
       publisher { name }
       release_date
@@ -279,9 +297,23 @@ class HardcoverRepository(BookRepositoryBase):
 
     def _search_by_query(self, filter_config: BookFilterDTO) -> CollectionDTO:
         query = (filter_config.search_query or "").strip()
-        data = self._gql(_SEARCH_QUERY, {"query": query})
-        hits = (data["search"]["results"] or {}).get("hits") or []
-        books = [self._book_dto(hit["document"]) for hit in hits]
+        editions_filter = {"reading_format": {"format": {"_eq": "Ebook"}}}
+        if filter_config.languages:
+            editions_filter["language"] = {"code2": {"_in": filter_config.languages}}
+        where = {
+            "_or": [
+                {"title": {"_ilike": f"%{query}%"}, "editions": editions_filter},
+                # title and language must match the same edition row (a translation's own
+                # title), not the book's canonical grouping title
+                {"editions": {**editions_filter, "title": {"_ilike": f"%{query}%"}}},
+                {
+                    "contributions": {"author": {"name": {"_ilike": f"%{query}%"}}},
+                    "editions": editions_filter,
+                },
+            ],
+        }
+        data = self._gql(_SEARCH_BOOKS_QUERY, {"where": where, "limit": 20, "offset": 0})
+        books = [self._book_dto(node) for node in data["books"]]
         return CollectionDTO(
             external_id=f"search:{query.lower()}",
             source=self.SOURCE,
@@ -289,7 +321,7 @@ class HardcoverRepository(BookRepositoryBase):
             description=f'Books matching "{query}"',
             cover_image="",
             book_count=len(books),
-            filter_config=BookFilterDTO(search_query=query),
+            filter_config=BookFilterDTO(search_query=query, languages=filter_config.languages),
             books=books,
         )
 
